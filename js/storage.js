@@ -496,6 +496,31 @@ function ensureRuntimeDefaults() {
 ensureRuntimeDefaults();
 
 
+
+function hasMeaningfulRuntimeData(db) {
+  const payload = db || {};
+  return (
+    (payload.inspections || []).length > 0 ||
+    (payload.observations || []).length > 0 ||
+    (payload.requisitions || []).length > 0 ||
+    Object.keys(payload.images || {}).length > 0
+  );
+}
+
+async function preventBlankCloudOverwrite(localPayload) {
+  if (hasMeaningfulRuntimeData(localPayload)) return localPayload;
+
+  const remote = await readCloudRuntimeData();
+  if (!remote || !hasMeaningfulRuntimeData(remote)) return localPayload;
+
+  suppressSync = true;
+  runtimeDB = clone({ ...DB_TEMPLATE, ...remote });
+  suppressSync = false;
+  persistLocalCache();
+  window.dispatchEvent(new CustomEvent('atr-db-updated'));
+  setSyncStatus({ ok: true, message: 'Recovered cloud data and skipped blank overwrite.' });
+  return buildDatabaseFilesPayload();
+}
 function buildDatabaseFilesPayload() {
   const db = readDB();
   return {
@@ -553,9 +578,15 @@ async function initializeData() {
 async function syncAllToCloud(config = getCloudConfig()) {
   if (!config.enabled) return;
   await ensureFirebaseSession();
+
   cloudWriteChain = cloudWriteChain
     .catch(() => {})
-    .then(() => writeCloudRuntimeData(buildDatabaseFilesPayload()));
+    .then(async () => {
+      const payload = buildDatabaseFilesPayload();
+      const safePayload = await preventBlankCloudOverwrite(payload);
+      await writeCloudRuntimeData(safePayload);
+    });
+
   await cloudWriteChain;
   setSyncStatus({ ok: true, message: 'Saved to Firebase cloud successfully.' });
 }

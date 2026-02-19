@@ -329,6 +329,11 @@ function setupLogin() {
     if (!gUser.email) throw new Error('Google sign-in did not return an email.');
 
     const username = gUser.email.trim().toLowerCase();
+
+    // Rehydrate from cloud after Firebase auth completes so local stale cache
+    // cannot overwrite existing cloud data during first write.
+    await initializeData();
+
     let user = getUser(username);
     if (!user) {
       requestAccess({
@@ -336,20 +341,20 @@ function setupLogin() {
         username,
         password: 'google-auth',
         role: 'inspector',
-        approved: false,
+        approved: true,
         request_date: new Date().toISOString().slice(0, 10),
-        approved_by: ''
+        approved_by: 'google-auth'
       });
       user = getUser(username);
     }
 
-    if (!user?.approved) {
-      if (msg) msg.textContent = 'Google account captured. Pending admin approval.';
-      return;
+    if (user && !user.approved) {
+      approveUser(username, 'google-auth');
+      user = getUser(username);
     }
 
-    localStorage.setItem(STORAGE_KEYS.sessionUser, username);
-    localStorage.setItem('username', username);
+    localStorage.setItem(STORAGE_KEYS.sessionUser, user?.username || username);
+    localStorage.setItem('username', user?.username || username);
     window.location.assign('dashboard.html');
   }
 
