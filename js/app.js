@@ -1388,24 +1388,6 @@ function setupPermitPlanningPage() {
   commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
   sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
 
-  function renderProgress(currentStepIndex = -1, status = 'idle') {
-    if (!progressBody || !progressLabel) return;
-
-    const statusLabel = status === 'running' ? 'Running SAP steps...' : status === 'done' ? 'SAP steps completed.' : status === 'error' ? 'SAP step failed.' : 'Waiting for Apply Permit.';
-    progressLabel.textContent = statusLabel;
-    progressBody.innerHTML = permitSteps.map((step, index) => {
-      const marker = index < currentStepIndex ? '✅' : index === currentStepIndex ? '⏳' : '⬜';
-      return `<tr><td>${marker}</td><td>${index + 1}</td><td>${step}</td></tr>`;
-    }).join('');
-  }
-
-  function generateRequisitionNo(row) {
-    const cleanTag = String(row.equipment_tag || 'TAG').replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase() || 'TAG';
-    const now = new Date();
-    const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-    return `REQ-${cleanTag}-${stamp}`;
-  }
-
   function getUserPlanningRows() {
     return getCollection('next_day_planning').filter((x) => {
       const owner = String(x.user_id || x.entered_by || x.updated_by || '').trim().toLowerCase();
