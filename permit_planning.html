@@ -53,49 +53,34 @@
           <div class="list-actions page-toolbar">
             <h2>Planned Equipment</h2>
             <button class="btn" id="refreshPlanningBtn" type="button">Refresh</button>
-            <button class="btn" id="createGroupBtn" type="button">Create Group From Selected</button>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>Select</th><th>Tag</th><th>Name</th><th>Functional Location</th><th>Work Center</th><th>Planned Date</th><th>Status</th></tr>
+                <tr><th>Tag</th><th>Name</th><th>Functional Location</th><th>Work Center</th><th>Planned Date</th><th>Status</th></tr>
               </thead>
               <tbody id="planningTableBody"></tbody>
             </table>
           </div>
         </section>
 
-        <section class="form-card">
-          <h2>Permit Input Form (Single Item or Group)</h2>
-          <form id="permitApplyForm" class="form-grid">
-            <label>Selection Mode
-              <select id="permitSelectionMode">
-                <option value="single">Single item permit</option>
-                <option value="group">Multiple item clubbing</option>
-              </select>
-            </label>
-            <label>Target
-              <select id="permitTargetSelect" required></select>
-            </label>
-            <label>TITLE (max 40)
-              <input id="permitTitle" maxlength="40" required />
-            </label>
-            <label>PERMIT_TYPE
-              <select id="permitType" required></select>
-            </label>
-            <label class="full-width">DESCRIPTION
-              <textarea id="permitDescription" required></textarea>
-            </label>
-            <label>WORK_CENTER
-              <input id="permitWorkCenter" required />
-            </label>
-            <label>FUNCTIONAL_LOCATION
-              <input id="permitFunctionalLocation" required />
-            </label>
-            <label>NO_OF_PERSON
-              <input id="permitNoOfPerson" type="number" min="1" required />
-            </label>
-            <div class="actions full-width">
+        <section class="table-card">
+          <h2>Permit Request Table (Add to Cart from Planning)</h2>
+          <form id="permitApplyForm">
+            <div class="form-grid" style="margin-bottom: 10px;">
+              <label>Common WORK_CENTER (for all selected rows)
+                <input id="permitCommonWorkCenter" required />
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Apply</th><th>Tag</th><th>Name</th><th>Functional Location</th><th>Title</th><th>Permit Type</th><th>No. of Person</th><th>CPF</th></tr>
+                </thead>
+                <tbody id="permitRequestTableBody"></tbody>
+              </table>
+            </div>
+            <div class="actions" style="margin-top: 10px;">
               <button class="btn btn-primary" id="applyPermitBtn" type="submit">Apply Permit</button>
               <button class="btn hidden" id="continuePermitFlowBtn" type="button">Continue</button>
             </div>

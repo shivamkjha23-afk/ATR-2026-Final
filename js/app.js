@@ -1353,8 +1353,6 @@ function setupPermitPlanningPage() {
   const sessionForm = document.getElementById('permitSessionForm');
   const sessionHint = document.getElementById('permitSessionHint');
   const planningBody = document.getElementById('planningTableBody');
-  const modeSelect = document.getElementById('permitSelectionMode');
-  const targetSelect = document.getElementById('permitTargetSelect');
   const applyForm = document.getElementById('permitApplyForm');
   const continueBtn = document.getElementById('continuePermitFlowBtn');
   const message = document.getElementById('permitFlowMessage');
@@ -1362,32 +1360,38 @@ function setupPermitPlanningPage() {
   const emailDraft = document.getElementById('permitEmailDraft');
   const copyDraftBtn = document.getElementById('copyPermitEmailBtn');
   const sendMailBtn = document.getElementById('sendPermitEmailBtn');
+  const requestBody = document.getElementById('permitRequestTableBody');
+  const commonWorkCenterInput = document.getElementById('permitCommonWorkCenter');
 
-  const permitType = document.getElementById('permitType');
-  permitType.innerHTML = '<option value="">Select Permit Type</option>' + PERMIT_TYPE_OPTIONS.map((p) => `<option value="${p.value}">${p.value} → ${p.label}</option>`).join('');
+  const username = String(getLoggedInUser() || '').trim().toLowerCase();
+
+  const permitTypeOptionsHtml = '<option value="">Select</option>' + PERMIT_TYPE_OPTIONS
+    .map((p) => `<option value="${p.value}">${p.value} → ${p.label}</option>`)
+    .join('');
 
   const sessionData = getPermitSessionData();
   document.getElementById('permitUsername').value = sessionData.USERNAME || '';
   document.getElementById('permitPassword').value = sessionData.PASSWORD || '';
   document.getElementById('permitCpfNo').value = sessionData.CPF_NO || '';
+  commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
   sessionHint.textContent = sessionData.USERNAME ? `Session data loaded for ${sessionData.USERNAME}.` : 'No session credentials stored yet.';
 
-  const username = getLoggedInUser();
-  let cachedGroups = [];
-
   function getUserPlanningRows() {
-    return getCollection('next_day_planning').filter((x) => x.user_id === username);
+    return getCollection('next_day_planning').filter((x) => String(x.user_id || '').trim().toLowerCase() === username);
+  }
+
+  function getPendingPlanningRows() {
+    return getUserPlanningRows().filter((x) => (x.status || 'pending') !== 'permit_applied');
   }
 
   function renderPlanning() {
     const rows = getUserPlanningRows();
     if (!rows.length) {
-      planningBody.innerHTML = '<tr><td colspan="7">No next day planning records for current user.</td></tr>';
+      planningBody.innerHTML = '<tr><td colspan="6">No next day planning records for current user.</td></tr>';
       return;
     }
     planningBody.innerHTML = rows.map((r) => `
       <tr>
-        <td><input type="checkbox" class="plan-selector" data-id="${r.id}" /></td>
         <td>${r.equipment_tag || '-'}</td>
         <td>${r.equipment_name || '-'}</td>
         <td>${r.functional_location || '-'}</td>
@@ -1398,31 +1402,38 @@ function setupPermitPlanningPage() {
     `).join('');
   }
 
-  function renderTargets() {
-    const rows = getUserPlanningRows().filter((x) => x.status !== 'permit_applied');
-    if (modeSelect.value === 'single') {
-      targetSelect.innerHTML = rows.map((r) => `<option value="item:${r.id}">${r.equipment_tag} (${r.equipment_name || '-'})</option>`).join('');
+  function renderRequestTable() {
+    const rows = getPendingPlanningRows();
+    if (!rows.length) {
+      requestBody.innerHTML = '<tr><td colspan="8">No pending planning items. Add from Update Inspection first.</td></tr>';
       return;
     }
-    targetSelect.innerHTML = cachedGroups.map((g) => `<option value="group:${g.id}">${g.label}</option>`).join('');
+
+    requestBody.innerHTML = rows.map((r) => {
+      const defaultTitle = `Inspection of ${r.equipment_tag || 'tag'}`.slice(0, 40);
+      return `
+        <tr>
+          <td><input type="checkbox" class="permit-row-selector" data-id="${r.id}" checked /></td>
+          <td>${r.equipment_tag || '-'}</td>
+          <td>${r.equipment_name || '-'}</td>
+          <td>${r.functional_location || '-'}</td>
+          <td><input class="permit-title-input" data-id="${r.id}" maxlength="40" value="${defaultTitle}" /></td>
+          <td><select class="permit-type-input" data-id="${r.id}" required>${permitTypeOptionsHtml}</select></td>
+          <td><input class="permit-person-input" data-id="${r.id}" type="number" min="1" value="6" required /></td>
+          <td>CPF from session</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   function renderSummary() {
-    const rows = getCollection('permit_applications').filter((x) => x.applied_by === username);
+    const rows = getCollection('permit_applications').filter((x) => String(x.applied_by || '').trim().toLowerCase() === username);
     summaryBody.innerHTML = rows.length ? rows.map((r) => `<tr><td>${r.TITLE}</td><td>${r.PERMIT_TYPE}</td><td>${r.REQUISITION_NO}</td><td>${r.equipment_tag}</td><td>${formatDateLabel(r.applied_on)}</td></tr>`).join('') : '<tr><td colspan="5">No permits applied yet.</td></tr>';
     const draft = buildPermitEmailDraft(rows);
     emailDraft.value = draft;
     const subject = encodeURIComponent('Permit Application Summary');
     const body = encodeURIComponent(draft);
     sendMailBtn.href = `mailto:?subject=${subject}&body=${body}`;
-  }
-
-  function collectTargets() {
-    const [mode, id] = (targetSelect.value || '').split(':');
-    const rows = getUserPlanningRows();
-    if (mode === 'item') return rows.filter((x) => x.id === id);
-    const group = cachedGroups.find((g) => g.id === id);
-    return group ? rows.filter((x) => group.itemIds.includes(x.id)) : [];
   }
 
   async function runPermitFlowForRow(row, commonInput) {
@@ -1453,27 +1464,16 @@ function setupPermitPlanningPage() {
     const payload = {
       USERNAME: document.getElementById('permitUsername').value.trim(),
       PASSWORD: document.getElementById('permitPassword').value,
-      CPF_NO: document.getElementById('permitCpfNo').value.trim()
+      CPF_NO: document.getElementById('permitCpfNo').value.trim(),
+      WORK_CENTER: commonWorkCenterInput.value.trim()
     };
     setPermitSessionData(payload);
     sessionHint.textContent = `Session credentials saved for ${payload.USERNAME}.`;
   });
 
-  document.getElementById('createGroupBtn').onclick = () => {
-    const selectedIds = Array.from(document.querySelectorAll('.plan-selector:checked')).map((x) => x.dataset.id);
-    if (selectedIds.length < 2) {
-      alert('Select at least 2 items to create a clubbed group.');
-      return;
-    }
-    cachedGroups.push({ id: `grp-${Date.now()}`, itemIds: selectedIds, label: `Group (${selectedIds.length} items) - ${new Date().toLocaleTimeString()}` });
-    modeSelect.value = 'group';
-    renderTargets();
-  };
-
-  modeSelect.onchange = renderTargets;
   document.getElementById('refreshPlanningBtn').onclick = () => {
     renderPlanning();
-    renderTargets();
+    renderRequestTable();
     renderSummary();
   };
 
@@ -1485,38 +1485,58 @@ function setupPermitPlanningPage() {
 
   applyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const title = document.getElementById('permitTitle').value.trim();
-    if (title.length > 40) {
-      alert('TITLE cannot exceed 40 characters.');
-      return;
-    }
 
     const sessionInputs = getPermitSessionData();
     if (!sessionInputs.USERNAME || !sessionInputs.PASSWORD || !sessionInputs.CPF_NO) {
-      alert('Please provide USERNAME, PASSWORD, CPF_NO once per session.');
+      alert('Please save USERNAME, PASSWORD, CPF_NO once per session.');
       return;
     }
 
-    const rows = collectTargets();
-    if (!rows.length) {
-      alert('No planning rows selected for permit application.');
+    const selectedIds = new Set(Array.from(document.querySelectorAll('.permit-row-selector:checked')).map((cb) => cb.dataset.id));
+    if (!selectedIds.size) {
+      alert('Select at least one row from permit request table.');
       return;
     }
 
-    const commonInput = {
-      USERNAME: sessionInputs.USERNAME,
-      PASSWORD: sessionInputs.PASSWORD,
-      TITLE: title,
-      DESCRIPTION: document.getElementById('permitDescription').value,
-      FUNCTIONAL_LOCATION: document.getElementById('permitFunctionalLocation').value.trim(),
-      WORK_CENTER: document.getElementById('permitWorkCenter').value.trim(),
-      NO_OF_PERSON: document.getElementById('permitNoOfPerson').value,
-      PERMIT_TYPE: document.getElementById('permitType').value,
-      CPF_NO: sessionInputs.CPF_NO
-    };
+    const pendingRows = getPendingPlanningRows();
+    const selectedRows = pendingRows.filter((row) => selectedIds.has(row.id));
+    if (!selectedRows.length) {
+      alert('No pending planning rows selected.');
+      return;
+    }
+
+    const commonWorkCenter = commonWorkCenterInput.value.trim() || sessionInputs.WORK_CENTER || '';
+    if (!commonWorkCenter) {
+      alert('Enter common work center once for all selected rows.');
+      return;
+    }
+
+    const titleById = new Map(Array.from(document.querySelectorAll('.permit-title-input')).map((el) => [el.dataset.id, el.value.trim()]));
+    const permitTypeById = new Map(Array.from(document.querySelectorAll('.permit-type-input')).map((el) => [el.dataset.id, el.value]));
+    const personById = new Map(Array.from(document.querySelectorAll('.permit-person-input')).map((el) => [el.dataset.id, el.value]));
 
     try {
-      for (const row of rows) {
+      for (const row of selectedRows) {
+        const title = (titleById.get(row.id) || `Inspection of ${row.equipment_tag || 'tag'}`).slice(0, 40);
+        const permitType = permitTypeById.get(row.id) || '';
+        const noOfPerson = personById.get(row.id) || '6';
+
+        if (!permitType) {
+          throw new Error(`Permit type missing for ${row.equipment_tag || row.id}`);
+        }
+
+        const commonInput = {
+          USERNAME: sessionInputs.USERNAME,
+          PASSWORD: sessionInputs.PASSWORD,
+          TITLE: title,
+          DESCRIPTION: '',
+          FUNCTIONAL_LOCATION: (row.functional_location || '').trim(),
+          WORK_CENTER: commonWorkCenter,
+          NO_OF_PERSON: noOfPerson,
+          PERMIT_TYPE: permitType,
+          CPF_NO: sessionInputs.CPF_NO
+        };
+
         const reqNo = await runPermitFlowForRow(row, commonInput);
         upsertById('permit_applications', {
           equipment_tag: row.equipment_tag,
@@ -1524,17 +1544,26 @@ function setupPermitPlanningPage() {
           PERMIT_TYPE: commonInput.PERMIT_TYPE,
           REQUISITION_NO: reqNo,
           applied_by: username,
-          applied_on: new Date().toISOString()
+          applied_on: new Date().toISOString(),
+          cpf_no: commonInput.CPF_NO,
+          no_of_person: commonInput.NO_OF_PERSON,
+          work_center: commonInput.WORK_CENTER
         }, 'PMT');
-        upsertById('next_day_planning', { ...row, status: 'permit_applied' }, 'PLAN');
+
+        upsertById('next_day_planning', {
+          ...row,
+          work_center: commonWorkCenter,
+          status: 'permit_applied'
+        }, 'PLAN');
       }
       sessionStorage.removeItem('last_successful_step_index');
-      message.textContent = `Permit flow completed for ${rows.length} item(s).`;
+      message.textContent = `Permit flow completed for ${selectedRows.length} item(s).`;
       renderPlanning();
-      renderTargets();
+      renderRequestTable();
       renderSummary();
-    } catch (_) {
-      // Resume is handled via Continue button.
+    } catch (err) {
+      if (!continueBtn.classList.contains('hidden')) return;
+      message.textContent = err.message;
     }
   });
 
@@ -1549,12 +1578,12 @@ function setupPermitPlanningPage() {
 
   window.addEventListener('atr-db-updated', () => {
     renderPlanning();
-    renderTargets();
+    renderRequestTable();
     renderSummary();
   });
 
   renderPlanning();
-  renderTargets();
+  renderRequestTable();
   renderSummary();
 }
 
