@@ -766,7 +766,7 @@ function setupInspectionPage() {
       .filter((row) => selectedKeys.has(String(row.id || row.equipment_tag_number || '').trim().toLowerCase()))
       .filter((row) => !existingKey.has(`${row.equipment_tag_number}__${plannedDate}`))
       .map((row) => ({
-        user_id: currentUser,
+        user_id: normalizedUser,
         equipment_tag: row.equipment_tag_number || '',
         equipment_name: row.equipment_name || '',
         functional_location: row.functional_location || row.unit_name || '',
@@ -1328,16 +1328,22 @@ function setupAdminPanel() {
 
 
 
-function getPermitSessionData() {
+function getPermitSessionData(username = '') {
+  const normalizedUser = String(username || '').trim().toLowerCase();
+  const scopedKey = `atr2026_permit_session_${normalizedUser}`;
   try {
-    return JSON.parse(sessionStorage.getItem('atr2026_permit_session') || '{}');
+    return JSON.parse(localStorage.getItem(scopedKey) || sessionStorage.getItem(scopedKey) || '{}');
   } catch (_) {
     return {};
   }
 }
 
-function setPermitSessionData(payload) {
-  sessionStorage.setItem('atr2026_permit_session', JSON.stringify(payload || {}));
+function setPermitSessionData(username = '', payload = {}) {
+  const normalizedUser = String(username || '').trim().toLowerCase();
+  const scopedKey = `atr2026_permit_session_${normalizedUser}`;
+  const serialized = JSON.stringify(payload || {});
+  localStorage.setItem(scopedKey, serialized);
+  sessionStorage.setItem(scopedKey, serialized);
 }
 
 function buildPermitEmailDraft(rows = []) {
@@ -1355,7 +1361,6 @@ function setupPermitPlanningPage() {
     'Capture Requisition Number', 'Release', 'Save'
   ];
 
-  const sessionForm = document.getElementById('permitSessionForm');
   const sessionHint = document.getElementById('permitSessionHint');
   const planningBody = document.getElementById('planningTableBody');
   const applyForm = document.getElementById('permitApplyForm');
@@ -1374,15 +1379,17 @@ function setupPermitPlanningPage() {
     .map((p) => `<option value="${p.value}">${p.value} → ${p.label}</option>`)
     .join('');
 
-  const sessionData = getPermitSessionData();
-  document.getElementById('permitUsername').value = sessionData.USERNAME || '';
-  document.getElementById('permitPassword').value = sessionData.PASSWORD || '';
-  document.getElementById('permitCpfNo').value = sessionData.CPF_NO || '';
+  const cpfInput = document.getElementById('permitCpfNo');
+  const sessionData = getPermitSessionData(username);
+  cpfInput.value = sessionData.CPF_NO || '';
   commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
-  sessionHint.textContent = sessionData.USERNAME ? `Session data loaded for ${sessionData.USERNAME}.` : 'No session credentials stored yet.';
+  sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
 
   function getUserPlanningRows() {
-    return getCollection('next_day_planning').filter((x) => String(x.user_id || '').trim().toLowerCase() === username);
+    return getCollection('next_day_planning').filter((x) => {
+      const owner = String(x.user_id || x.entered_by || x.updated_by || '').trim().toLowerCase();
+      return owner === username;
+    });
   }
 
   function getPendingPlanningRows() {
@@ -1464,17 +1471,6 @@ function setupPermitPlanningPage() {
     return row.__REQUISITION_NO || `REQ-${Date.now()}`;
   }
 
-  sessionForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const payload = {
-      USERNAME: document.getElementById('permitUsername').value.trim(),
-      PASSWORD: document.getElementById('permitPassword').value,
-      CPF_NO: document.getElementById('permitCpfNo').value.trim(),
-      WORK_CENTER: commonWorkCenterInput.value.trim()
-    };
-    setPermitSessionData(payload);
-    sessionHint.textContent = `Session credentials saved for ${payload.USERNAME}.`;
-  });
 
   document.getElementById('refreshPlanningBtn').onclick = () => {
     renderPlanning();
@@ -1491,9 +1487,10 @@ function setupPermitPlanningPage() {
   applyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const sessionInputs = getPermitSessionData();
-    if (!sessionInputs.USERNAME || !sessionInputs.PASSWORD || !sessionInputs.CPF_NO) {
-      alert('Please save USERNAME, PASSWORD, CPF_NO once per session.');
+    const sessionInputs = getPermitSessionData(username);
+    const cpfNo = cpfInput.value.trim() || sessionInputs.CPF_NO || '';
+    if (!cpfNo) {
+      alert('Enter CPF_NO once. It will be reused for this user.');
       return;
     }
 
@@ -1516,6 +1513,11 @@ function setupPermitPlanningPage() {
       return;
     }
 
+    setPermitSessionData(username, {
+      CPF_NO: cpfNo,
+      WORK_CENTER: commonWorkCenter
+    });
+
     const titleById = new Map(Array.from(document.querySelectorAll('.permit-title-input')).map((el) => [el.dataset.id, el.value.trim()]));
     const permitTypeById = new Map(Array.from(document.querySelectorAll('.permit-type-input')).map((el) => [el.dataset.id, el.value]));
     const personById = new Map(Array.from(document.querySelectorAll('.permit-person-input')).map((el) => [el.dataset.id, el.value]));
@@ -1531,15 +1533,15 @@ function setupPermitPlanningPage() {
         }
 
         const commonInput = {
-          USERNAME: sessionInputs.USERNAME,
-          PASSWORD: sessionInputs.PASSWORD,
+          USERNAME: username,
+          PASSWORD: '',
           TITLE: title,
           DESCRIPTION: '',
           FUNCTIONAL_LOCATION: (row.functional_location || '').trim(),
           WORK_CENTER: commonWorkCenter,
           NO_OF_PERSON: noOfPerson,
           PERMIT_TYPE: permitType,
-          CPF_NO: sessionInputs.CPF_NO
+          CPF_NO: cpfNo
         };
 
         const reqNo = await runPermitFlowForRow(row, commonInput);

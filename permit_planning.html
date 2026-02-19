@@ -31,22 +31,8 @@
 
       <main class="page-main">
         <section class="form-card">
-          <h2>SAP Session Credentials (once per session)</h2>
-          <form id="permitSessionForm" class="form-grid">
-            <label>USERNAME
-              <input id="permitUsername" required />
-            </label>
-            <label>PASSWORD
-              <input id="permitPassword" type="password" required />
-            </label>
-            <label>CPF_NO
-              <input id="permitCpfNo" required />
-            </label>
-            <div class="actions full-width">
-              <button class="btn btn-primary" id="savePermitSessionBtn" type="submit">Save Session Inputs</button>
-            </div>
-          </form>
-          <p class="hint" id="permitSessionHint"></p>
+          <h2>Permit Request Defaults</h2>
+          <p class="hint" id="permitSessionHint">Set common values once. Row-level inputs stay in the permit request table.</p>
         </section>
 
         <section class="table-card">
@@ -70,6 +56,9 @@
             <div class="form-grid" style="margin-bottom: 10px;">
               <label>Common WORK_CENTER (for all selected rows)
                 <input id="permitCommonWorkCenter" required />
+              </label>
+              <label>CPF_NO (common per user)
+                <input id="permitCpfNo" required />
               </label>
             </div>
             <div class="table-wrap">
