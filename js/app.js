@@ -1356,11 +1356,27 @@ function setupPermitPlanningPage() {
   if (document.body.dataset.page !== 'permit-planning') return;
 
   const SAP_WEBSITE_URL = localStorage.getItem('atr2026_sap_website_url') || 'https://me.sap.com';
-  const permitSteps = [
-    'LOGIN', 'IW21', 'Notification Type = Z2', 'Short Text = TITLE', 'Functional Location', 'Equipment', 'Planner Group = INP',
-    'Main Work Center', 'Person Involved', 'WCM Operation', 'Permit Required', 'Permit Type', 'Create', 'Save',
-    'Capture Requisition Number', 'Release', 'Save'
+  const PERMIT_AUTOMATION_CONFIG = 'Apply permit-z2.json';
+  const fallbackPermitSteps = [
+    { action: 'login', label: 'Login' },
+    { action: 'search_app', label: 'Open IW21' },
+    { action: 'set_field', label: 'Notification Type = Z2' },
+    { action: 'set_field', label: 'Short Text = TITLE' },
+    { action: 'set_field', label: 'Functional Location' },
+    { action: 'set_field', label: 'Equipment' },
+    { action: 'set_field', label: 'Planner Group = INP' },
+    { action: 'set_field', label: 'Main Work Center' },
+    { action: 'set_field', label: 'Person Involved' },
+    { action: 'set_field', label: 'WCM Operation' },
+    { action: 'set_field', label: 'Permit Required' },
+    { action: 'set_field', label: 'Permit Type' },
+    { action: 'open_permit_create', label: 'Create Permit' },
+    { action: 'save', label: 'Save' },
+    { action: 'capture_requisition_no', label: 'Capture Requisition Number' },
+    { action: 'release', label: 'Release' },
+    { action: 'save', label: 'Save' }
   ];
+  let permitSteps = [...fallbackPermitSteps];
 
   const sessionHint = document.getElementById('permitSessionHint');
   const planningBody = document.getElementById('planningTableBody');
@@ -1386,6 +1402,55 @@ function setupPermitPlanningPage() {
   cpfInput.value = sessionData.CPF_NO || '';
   commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
   sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
+
+  function toStepLabel(step) {
+    if (step.label) return step.label;
+    const action = String(step.action || '').replace(/_/g, ' ').trim();
+    return action ? action.replace(/\b\w/g, (c) => c.toUpperCase()) : 'Step';
+  }
+
+  function renderProgress(currentIndex = -1, state = 'idle') {
+    if (!permitSteps.length) {
+      progressBody.innerHTML = '<tr><td>⏳</td><td>-</td><td>No automation steps loaded.</td></tr>';
+      progressLabel.textContent = 'No permit automation steps configured.';
+      return;
+    }
+
+    progressBody.innerHTML = permitSteps.map((step, i) => {
+      let status = '⏳ Pending';
+      if (state === 'done') status = '✅ Done';
+      else if (state === 'error' && i === currentIndex) status = '❌ Failed';
+      else if (i < currentIndex) status = '✅ Done';
+      else if (i === currentIndex && state === 'running') status = '🔄 Running';
+      return `<tr><td>${status}</td><td>${i + 1}</td><td>${toStepLabel(step)}</td></tr>`;
+    }).join('');
+
+    if (state === 'done') progressLabel.textContent = `Completed ${permitSteps.length}/${permitSteps.length} SAP steps.`;
+    else if (state === 'error') progressLabel.textContent = `Failed at step ${currentIndex + 1} of ${permitSteps.length}.`;
+    else if (currentIndex < 0) progressLabel.textContent = `Waiting for Apply Permit (${permitSteps.length} configured steps).`;
+    else progressLabel.textContent = `Running step ${currentIndex + 1} of ${permitSteps.length}.`;
+  }
+
+  function generateRequisitionNo(row = {}) {
+    const equipmentTag = String(row.equipment_tag || 'TAG').replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase() || 'TAG';
+    return `REQ-${equipmentTag}-${Date.now().toString().slice(-6)}`;
+  }
+
+  async function loadPermitAutomationConfig() {
+    try {
+      const res = await fetch(PERMIT_AUTOMATION_CONFIG, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json();
+      if (Array.isArray(payload.steps) && payload.steps.length) {
+        permitSteps = payload.steps;
+        sessionHint.textContent = `${payload.title || 'Permit automation'} loaded with ${permitSteps.length} steps.`;
+      }
+    } catch (_) {
+      permitSteps = [...fallbackPermitSteps];
+    } finally {
+      renderProgress(-1, 'idle');
+    }
+  }
 
   function getUserPlanningRows() {
     return getCollection('next_day_planning').filter((x) => {
@@ -1460,18 +1525,21 @@ function setupPermitPlanningPage() {
       const step = permitSteps[i];
       try {
         renderProgress(i, 'running');
-        message.textContent = `Processing ${row.equipment_tag || row.id}: ${step}`;
+        message.textContent = `Processing ${row.equipment_tag || row.id}: ${toStepLabel(step)}`;
         await new Promise((resolve) => setTimeout(resolve, 350));
 
-        if (step === 'Capture Requisition Number') {
+        if (step.action === 'capture_requisition_no') {
           row.__REQUISITION_NO = generateRequisitionNo(row);
         }
-        if (step === 'Functional Location' && !commonInput.FUNCTIONAL_LOCATION) {
+        if (step.action === 'set_field' && /functional/i.test(toStepLabel(step)) && !commonInput.FUNCTIONAL_LOCATION) {
           throw new Error('Functional Location does not exist');
+        }
+        if (step.action === 'set_field' && /equipment/i.test(toStepLabel(step)) && !row.equipment_tag) {
+          throw new Error('Equipment tag is missing');
         }
       } catch (err) {
         renderProgress(i, 'error');
-        message.textContent = `Step failed for ${row.equipment_tag || row.id}: ${step}. Error: ${err.message}`;
+        message.textContent = `Step failed for ${row.equipment_tag || row.id}: ${toStepLabel(step)}. Error: ${err.message}`;
         throw err;
       }
     }
@@ -1485,8 +1553,6 @@ function setupPermitPlanningPage() {
     renderRequestTable();
     renderSummary();
   };
-
-  if (continueBtn) continueBtn.onclick = () => {};
 
   applyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1594,7 +1660,7 @@ function setupPermitPlanningPage() {
   renderPlanning();
   renderRequestTable();
   renderSummary();
-  renderProgress(-1, 'idle');
+  loadPermitAutomationConfig();
 }
 
 function setupSyncStatusUI() {
