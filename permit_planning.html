@@ -42,12 +42,6 @@
             <label>CPF_NO
               <input id="permitCpfNo" required />
             </label>
-            <label>Default WORK_CENTER
-              <input id="permitDefaultWorkCenter" required />
-            </label>
-            <label>Default FUNCTIONAL_LOCATION
-              <input id="permitDefaultFunctionalLocation" required />
-            </label>
             <div class="actions full-width">
               <button class="btn btn-primary" id="savePermitSessionBtn" type="submit">Save Session Inputs</button>
             </div>
@@ -92,8 +86,14 @@
             <label class="full-width">DESCRIPTION
               <textarea id="permitDescription" required></textarea>
             </label>
+            <label>WORK_CENTER
+              <input id="permitWorkCenter" required />
+            </label>
+            <label>FUNCTIONAL_LOCATION
+              <input id="permitFunctionalLocation" required />
+            </label>
             <label>NO_OF_PERSON
-              <input id="permitNoOfPerson" type="number" min="1" value="6" required />
+              <input id="permitNoOfPerson" type="number" min="1" required />
             </label>
             <div class="actions full-width">
               <button class="btn btn-primary" id="applyPermitBtn" type="submit">Apply Permit</button>

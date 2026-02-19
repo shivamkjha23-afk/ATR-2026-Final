@@ -752,7 +752,7 @@ function setupInspectionPage() {
       alert('Select at least one equipment item.');
       return;
     }
-    const currentUser = String(getLoggedInUser() || '').trim().toLowerCase();
+    const currentUser = getLoggedInUser();
     const plannedDate = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
     const rows = getCollection('inspections');
     const existing = getCollection('next_day_planning');
@@ -1370,18 +1370,13 @@ function setupPermitPlanningPage() {
   document.getElementById('permitUsername').value = sessionData.USERNAME || '';
   document.getElementById('permitPassword').value = sessionData.PASSWORD || '';
   document.getElementById('permitCpfNo').value = sessionData.CPF_NO || '';
-  document.getElementById('permitDefaultWorkCenter').value = sessionData.WORK_CENTER || '';
-  document.getElementById('permitDefaultFunctionalLocation').value = sessionData.FUNCTIONAL_LOCATION || '';
   sessionHint.textContent = sessionData.USERNAME ? `Session data loaded for ${sessionData.USERNAME}.` : 'No session credentials stored yet.';
 
-  const username = String(getLoggedInUser() || '').trim().toLowerCase();
+  const username = getLoggedInUser();
   let cachedGroups = [];
 
   function getUserPlanningRows() {
-    return getCollection('next_day_planning').filter((x) => {
-      const owner = String(x.user_id || x.entered_by || '').trim().toLowerCase();
-      return owner === username;
-    });
+    return getCollection('next_day_planning').filter((x) => x.user_id === username);
   }
 
   function renderPlanning() {
@@ -1407,11 +1402,9 @@ function setupPermitPlanningPage() {
     const rows = getUserPlanningRows().filter((x) => x.status !== 'permit_applied');
     if (modeSelect.value === 'single') {
       targetSelect.innerHTML = rows.map((r) => `<option value="item:${r.id}">${r.equipment_tag} (${r.equipment_name || '-'})</option>`).join('');
-      suggestDefaultTitle();
       return;
     }
     targetSelect.innerHTML = cachedGroups.map((g) => `<option value="group:${g.id}">${g.label}</option>`).join('');
-    suggestDefaultTitle();
   }
 
   function renderSummary() {
@@ -1422,17 +1415,6 @@ function setupPermitPlanningPage() {
     const subject = encodeURIComponent('Permit Application Summary');
     const body = encodeURIComponent(draft);
     sendMailBtn.href = `mailto:?subject=${subject}&body=${body}`;
-  }
-
-  function suggestDefaultTitle() {
-    const currentTitle = document.getElementById('permitTitle').value.trim();
-    if (currentTitle && !currentTitle.toLowerCase().startsWith('inspection of ')) return;
-    const rows = collectTargets();
-    if (!rows.length) return;
-    const defaultTitle = rows.length === 1
-      ? `Inspection of ${rows[0].equipment_tag || 'Tag No'}`
-      : `Inspection of ${rows[0].equipment_tag || 'Tag No'} +${rows.length - 1}`;
-    document.getElementById('permitTitle').value = defaultTitle.slice(0, 40);
   }
 
   function collectTargets() {
@@ -1471,9 +1453,7 @@ function setupPermitPlanningPage() {
     const payload = {
       USERNAME: document.getElementById('permitUsername').value.trim(),
       PASSWORD: document.getElementById('permitPassword').value,
-      CPF_NO: document.getElementById('permitCpfNo').value.trim(),
-      WORK_CENTER: document.getElementById('permitDefaultWorkCenter').value.trim(),
-      FUNCTIONAL_LOCATION: document.getElementById('permitDefaultFunctionalLocation').value.trim()
+      CPF_NO: document.getElementById('permitCpfNo').value.trim()
     };
     setPermitSessionData(payload);
     sessionHint.textContent = `Session credentials saved for ${payload.USERNAME}.`;
@@ -1491,8 +1471,6 @@ function setupPermitPlanningPage() {
   };
 
   modeSelect.onchange = renderTargets;
-  targetSelect.onchange = suggestDefaultTitle;
-  document.getElementById('permitNoOfPerson').value = document.getElementById('permitNoOfPerson').value || '6';
   document.getElementById('refreshPlanningBtn').onclick = () => {
     renderPlanning();
     renderTargets();
@@ -1514,8 +1492,8 @@ function setupPermitPlanningPage() {
     }
 
     const sessionInputs = getPermitSessionData();
-    if (!sessionInputs.USERNAME || !sessionInputs.PASSWORD || !sessionInputs.CPF_NO || !sessionInputs.WORK_CENTER || !sessionInputs.FUNCTIONAL_LOCATION) {
-      alert('Please provide USERNAME, PASSWORD, CPF_NO, WORK_CENTER and FUNCTIONAL_LOCATION once per session.');
+    if (!sessionInputs.USERNAME || !sessionInputs.PASSWORD || !sessionInputs.CPF_NO) {
+      alert('Please provide USERNAME, PASSWORD, CPF_NO once per session.');
       return;
     }
 
@@ -1530,9 +1508,9 @@ function setupPermitPlanningPage() {
       PASSWORD: sessionInputs.PASSWORD,
       TITLE: title,
       DESCRIPTION: document.getElementById('permitDescription').value,
-      FUNCTIONAL_LOCATION: sessionInputs.FUNCTIONAL_LOCATION,
-      WORK_CENTER: sessionInputs.WORK_CENTER,
-      NO_OF_PERSON: document.getElementById('permitNoOfPerson').value || '6',
+      FUNCTIONAL_LOCATION: document.getElementById('permitFunctionalLocation').value.trim(),
+      WORK_CENTER: document.getElementById('permitWorkCenter').value.trim(),
+      NO_OF_PERSON: document.getElementById('permitNoOfPerson').value,
       PERMIT_TYPE: document.getElementById('permitType').value,
       CPF_NO: sessionInputs.CPF_NO
     };
@@ -1548,7 +1526,7 @@ function setupPermitPlanningPage() {
           applied_by: username,
           applied_on: new Date().toISOString()
         }, 'PMT');
-        upsertById('next_day_planning', { ...row, user_id: username, status: 'permit_applied' }, 'PLAN');
+        upsertById('next_day_planning', { ...row, status: 'permit_applied' }, 'PLAN');
       }
       sessionStorage.removeItem('last_successful_step_index');
       message.textContent = `Permit flow completed for ${rows.length} item(s).`;
