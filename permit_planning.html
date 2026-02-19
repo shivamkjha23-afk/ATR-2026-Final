@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Permit Planning | ATR-2026 Tracker</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body data-page="permit-planning">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <h2>ATR-2026</h2>
+      <nav>
+        <a class="nav-link" href="dashboard.html">Dashboard</a>
+        <a class="nav-link" href="inspection.html">Update Inspection</a>
+        <a class="nav-link" href="observation.html">Observation Entry</a>
+        <a class="nav-link" href="requisition.html">Requisition</a>
+        <a class="nav-link active" href="permit_planning.html">Permit Planning</a>
+        <a class="nav-link admin-only" href="admin.html">Admin Panel</a>
+      </nav>
+    </aside>
+
+    <section class="content">
+      <header class="header">
+        <h1>Permit Planning & Application</h1>
+        <div class="header-right">
+          <p>Logged in as: <span id="loggedInUser">WindowsUser</span></p>
+          <button id="themeToggleBtn" class="btn" type="button">Toggle Theme</button>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section class="form-card">
+          <h2>SAP Session Credentials (once per session)</h2>
+          <form id="permitSessionForm" class="form-grid">
+            <label>USERNAME
+              <input id="permitUsername" required />
+            </label>
+            <label>PASSWORD
+              <input id="permitPassword" type="password" required />
+            </label>
+            <label>CPF_NO
+              <input id="permitCpfNo" required />
+            </label>
+            <div class="actions full-width">
+              <button class="btn btn-primary" id="savePermitSessionBtn" type="submit">Save Session Inputs</button>
+            </div>
+          </form>
+          <p class="hint" id="permitSessionHint"></p>
+        </section>
+
+        <section class="table-card">
+          <div class="list-actions page-toolbar">
+            <h2>Planned Equipment</h2>
+            <button class="btn" id="refreshPlanningBtn" type="button">Refresh</button>
+            <button class="btn" id="createGroupBtn" type="button">Create Group From Selected</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Select</th><th>Tag</th><th>Name</th><th>Functional Location</th><th>Work Center</th><th>Planned Date</th><th>Status</th></tr>
+              </thead>
+              <tbody id="planningTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="form-card">
+          <h2>Permit Input Form (Single Item or Group)</h2>
+          <form id="permitApplyForm" class="form-grid">
+            <label>Selection Mode
+              <select id="permitSelectionMode">
+                <option value="single">Single item permit</option>
+                <option value="group">Multiple item clubbing</option>
+              </select>
+            </label>
+            <label>Target
+              <select id="permitTargetSelect" required></select>
+            </label>
+            <label>TITLE (max 40)
+              <input id="permitTitle" maxlength="40" required />
+            </label>
+            <label>PERMIT_TYPE
+              <select id="permitType" required></select>
+            </label>
+            <label class="full-width">DESCRIPTION
+              <textarea id="permitDescription" required></textarea>
+            </label>
+            <label>WORK_CENTER
+              <input id="permitWorkCenter" required />
+            </label>
+            <label>FUNCTIONAL_LOCATION
+              <input id="permitFunctionalLocation" required />
+            </label>
+            <label>NO_OF_PERSON
+              <input id="permitNoOfPerson" type="number" min="1" required />
+            </label>
+            <div class="actions full-width">
+              <button class="btn btn-primary" id="applyPermitBtn" type="submit">Apply Permit</button>
+              <button class="btn hidden" id="continuePermitFlowBtn" type="button">Continue</button>
+            </div>
+          </form>
+          <p id="permitFlowMessage" class="hint"></p>
+        </section>
+
+        <section class="table-card">
+          <h2>Permit Application Summary</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>TITLE</th><th>PERMIT TYPE</th><th>REQUISITION NO</th><th>Equipment</th><th>Applied On</th></tr>
+              </thead>
+              <tbody id="permitSummaryBody"></tbody>
+            </table>
+          </div>
+          <div class="actions" style="margin-top:10px;">
+            <button class="btn" id="copyPermitEmailBtn" type="button">Copy Email Draft</button>
+            <a class="btn" id="sendPermitEmailBtn" href="#" target="_blank" rel="noopener">Open Mail Draft</a>
+          </div>
+          <textarea id="permitEmailDraft" class="full-width" style="min-height: 180px; margin-top: 12px;" readonly></textarea>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

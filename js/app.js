@@ -1,6 +1,16 @@
 const UNIT_OPTIONS = ['GCU-1', 'GCU-2', 'GPU-1', 'GPU-2', 'HDPE-1', 'HDPE-2', 'LLDPE-1', 'LLDPE-2', 'PP-1', 'PP-2', 'LPG', 'SPHERE', 'YARD', 'FLAKER-1', 'BOG', 'IOP','LOADING GANTRY','SCPT','ANP','ANP-II','DNP-1','DNP-2','Butene-1','New Butene-1'];
 const EQUIPMENT_TYPES = ['Pipeline', 'Vessel', 'Exchanger', 'Steam Trap', 'Tank'];
 const INSPECTION_STATUS_OPTIONS = ['Scaffolding Prepared', 'Manhole Opened', 'NDT in Progress', 'Insulation Removed', 'Manhole Box-up','Module Prepared'];
+const PERMIT_TYPE_OPTIONS = [
+  { value: 'REQ-CWP', label: 'Cold Work Permit' },
+  { value: 'REQ-HWP', label: 'Hot Work Permit' },
+  { value: 'REQ-ECP', label: 'Confined Space' },
+  { value: 'REQ-ELP', label: 'Electrical' },
+  { value: 'REQ-EXP', label: 'Excavation' },
+  { value: 'REQ-RGP', label: 'Radiography' },
+  { value: 'REQ-VHP', label: 'Vehicle Entry' },
+  { value: 'REQ-WHP', label: 'Work at Height' }
+];
 
 
 function buildQuickActions() {
@@ -9,6 +19,7 @@ function buildQuickActions() {
     { href: 'inspection.html', label: 'Inspection' },
     { href: 'observation.html', label: 'Observation' },
     { href: 'requisition.html', label: 'Requisition' },
+    { href: 'permit_planning.html', label: 'Permit Planning' },
     { href: 'admin.html', label: 'Admin', adminOnly: true }
   ];
 
@@ -735,6 +746,39 @@ function setupInspectionPage() {
     renderInspectionList();
   };
 
+  document.getElementById('addSelectedToNextDayPlanningBtn').onclick = () => {
+    const ids = new Set(Array.from(document.querySelectorAll('.inspection-selector:checked')).map((i) => i.dataset.id));
+    if (!ids.size) {
+      alert('Select at least one equipment item.');
+      return;
+    }
+    const currentUser = getLoggedInUser();
+    const plannedDate = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+    const rows = getCollection('inspections');
+    const existing = getCollection('next_day_planning');
+    const existingKey = new Set(existing.filter((x) => x.user_id === currentUser).map((x) => `${x.equipment_tag}__${x.planned_date}`));
+    const toAdd = rows
+      .filter((row) => ids.has(row.id))
+      .filter((row) => !existingKey.has(`${row.equipment_tag_number}__${plannedDate}`))
+      .map((row) => ({
+        user_id: currentUser,
+        equipment_tag: row.equipment_tag_number || '',
+        equipment_name: row.equipment_name || '',
+        functional_location: row.functional_location || row.unit_name || '',
+        work_center: row.work_center || '',
+        planned_date: plannedDate,
+        status: 'pending'
+      }));
+
+    if (!toAdd.length) {
+      alert('Selected items are already added for next day planning.');
+      return;
+    }
+
+    batchUpsertById('next_day_planning', toAdd, 'PLAN');
+    alert(`${toAdd.length} item(s) added to next day planning.`);
+  };
+
   document.getElementById('downloadVesselReportBtn')?.addEventListener('click', () => {
     const vesselRows = getCollection('inspections').filter((row) => row.equipment_type === 'Vessel');
     if (!vesselRows.length) {
@@ -1278,6 +1322,242 @@ function setupAdminPanel() {
 }
 
 
+
+function getPermitSessionData() {
+  try {
+    return JSON.parse(sessionStorage.getItem('atr2026_permit_session') || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+function setPermitSessionData(payload) {
+  sessionStorage.setItem('atr2026_permit_session', JSON.stringify(payload || {}));
+}
+
+function buildPermitEmailDraft(rows = []) {
+  const header = ['Permit Application Summary', '', 'TITLE | PERMIT TYPE | REQUISITION NO'];
+  const body = rows.map((r) => `${r.TITLE} | ${r.PERMIT_TYPE} | ${r.REQUISITION_NO}`);
+  return [...header, ...body].join('\n');
+}
+
+function setupPermitPlanningPage() {
+  if (document.body.dataset.page !== 'permit-planning') return;
+
+  const permitSteps = [
+    'LOGIN', 'IW21', 'Notification Type = Z2', 'Short Text = TITLE', 'Functional Location', 'Equipment', 'Planner Group = INP',
+    'Main Work Center', 'Person Involved', 'WCM Operation', 'Permit Required', 'Permit Type', 'Create', 'Save',
+    'Capture Requisition Number', 'Release', 'Save'
+  ];
+
+  const sessionForm = document.getElementById('permitSessionForm');
+  const sessionHint = document.getElementById('permitSessionHint');
+  const planningBody = document.getElementById('planningTableBody');
+  const modeSelect = document.getElementById('permitSelectionMode');
+  const targetSelect = document.getElementById('permitTargetSelect');
+  const applyForm = document.getElementById('permitApplyForm');
+  const continueBtn = document.getElementById('continuePermitFlowBtn');
+  const message = document.getElementById('permitFlowMessage');
+  const summaryBody = document.getElementById('permitSummaryBody');
+  const emailDraft = document.getElementById('permitEmailDraft');
+  const copyDraftBtn = document.getElementById('copyPermitEmailBtn');
+  const sendMailBtn = document.getElementById('sendPermitEmailBtn');
+
+  const permitType = document.getElementById('permitType');
+  permitType.innerHTML = '<option value="">Select Permit Type</option>' + PERMIT_TYPE_OPTIONS.map((p) => `<option value="${p.value}">${p.value} → ${p.label}</option>`).join('');
+
+  const sessionData = getPermitSessionData();
+  document.getElementById('permitUsername').value = sessionData.USERNAME || '';
+  document.getElementById('permitPassword').value = sessionData.PASSWORD || '';
+  document.getElementById('permitCpfNo').value = sessionData.CPF_NO || '';
+  sessionHint.textContent = sessionData.USERNAME ? `Session data loaded for ${sessionData.USERNAME}.` : 'No session credentials stored yet.';
+
+  const username = getLoggedInUser();
+  let cachedGroups = [];
+
+  function getUserPlanningRows() {
+    return getCollection('next_day_planning').filter((x) => x.user_id === username);
+  }
+
+  function renderPlanning() {
+    const rows = getUserPlanningRows();
+    if (!rows.length) {
+      planningBody.innerHTML = '<tr><td colspan="7">No next day planning records for current user.</td></tr>';
+      return;
+    }
+    planningBody.innerHTML = rows.map((r) => `
+      <tr>
+        <td><input type="checkbox" class="plan-selector" data-id="${r.id}" /></td>
+        <td>${r.equipment_tag || '-'}</td>
+        <td>${r.equipment_name || '-'}</td>
+        <td>${r.functional_location || '-'}</td>
+        <td>${r.work_center || '-'}</td>
+        <td>${r.planned_date || '-'}</td>
+        <td>${r.status || 'pending'}</td>
+      </tr>
+    `).join('');
+  }
+
+  function renderTargets() {
+    const rows = getUserPlanningRows().filter((x) => x.status !== 'permit_applied');
+    if (modeSelect.value === 'single') {
+      targetSelect.innerHTML = rows.map((r) => `<option value="item:${r.id}">${r.equipment_tag} (${r.equipment_name || '-'})</option>`).join('');
+      return;
+    }
+    targetSelect.innerHTML = cachedGroups.map((g) => `<option value="group:${g.id}">${g.label}</option>`).join('');
+  }
+
+  function renderSummary() {
+    const rows = getCollection('permit_applications').filter((x) => x.applied_by === username);
+    summaryBody.innerHTML = rows.length ? rows.map((r) => `<tr><td>${r.TITLE}</td><td>${r.PERMIT_TYPE}</td><td>${r.REQUISITION_NO}</td><td>${r.equipment_tag}</td><td>${formatDateLabel(r.applied_on)}</td></tr>`).join('') : '<tr><td colspan="5">No permits applied yet.</td></tr>';
+    const draft = buildPermitEmailDraft(rows);
+    emailDraft.value = draft;
+    const subject = encodeURIComponent('Permit Application Summary');
+    const body = encodeURIComponent(draft);
+    sendMailBtn.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
+  function collectTargets() {
+    const [mode, id] = (targetSelect.value || '').split(':');
+    const rows = getUserPlanningRows();
+    if (mode === 'item') return rows.filter((x) => x.id === id);
+    const group = cachedGroups.find((g) => g.id === id);
+    return group ? rows.filter((x) => group.itemIds.includes(x.id)) : [];
+  }
+
+  async function runPermitFlowForRow(row, commonInput) {
+    let stepIndex = Number(sessionStorage.getItem('last_successful_step_index') || '-1');
+    for (let i = stepIndex + 1; i < permitSteps.length; i += 1) {
+      const step = permitSteps[i];
+      try {
+        if (step === 'Capture Requisition Number') {
+          const req = window.prompt(`Enter requisition number for ${row.equipment_tag}:`, '');
+          if (!req) throw new Error('Requisition number not provided.');
+          row.__REQUISITION_NO = req.trim();
+        }
+        if (step === 'Functional Location' && !commonInput.FUNCTIONAL_LOCATION) {
+          throw new Error('Functional Location does not exist');
+        }
+        sessionStorage.setItem('last_successful_step_index', String(i));
+      } catch (err) {
+        message.textContent = `Fix SAP Screen and Click Continue. Step: ${step}. Error: ${err.message}`;
+        continueBtn.classList.remove('hidden');
+        throw err;
+      }
+    }
+    return row.__REQUISITION_NO || `REQ-${Date.now()}`;
+  }
+
+  sessionForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const payload = {
+      USERNAME: document.getElementById('permitUsername').value.trim(),
+      PASSWORD: document.getElementById('permitPassword').value,
+      CPF_NO: document.getElementById('permitCpfNo').value.trim()
+    };
+    setPermitSessionData(payload);
+    sessionHint.textContent = `Session credentials saved for ${payload.USERNAME}.`;
+  });
+
+  document.getElementById('createGroupBtn').onclick = () => {
+    const selectedIds = Array.from(document.querySelectorAll('.plan-selector:checked')).map((x) => x.dataset.id);
+    if (selectedIds.length < 2) {
+      alert('Select at least 2 items to create a clubbed group.');
+      return;
+    }
+    cachedGroups.push({ id: `grp-${Date.now()}`, itemIds: selectedIds, label: `Group (${selectedIds.length} items) - ${new Date().toLocaleTimeString()}` });
+    modeSelect.value = 'group';
+    renderTargets();
+  };
+
+  modeSelect.onchange = renderTargets;
+  document.getElementById('refreshPlanningBtn').onclick = () => {
+    renderPlanning();
+    renderTargets();
+    renderSummary();
+  };
+
+  continueBtn.onclick = async () => {
+    continueBtn.classList.add('hidden');
+    message.textContent = 'Resuming from last successful step...';
+    await applyForm.requestSubmit();
+  };
+
+  applyForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('permitTitle').value.trim();
+    if (title.length > 40) {
+      alert('TITLE cannot exceed 40 characters.');
+      return;
+    }
+
+    const sessionInputs = getPermitSessionData();
+    if (!sessionInputs.USERNAME || !sessionInputs.PASSWORD || !sessionInputs.CPF_NO) {
+      alert('Please provide USERNAME, PASSWORD, CPF_NO once per session.');
+      return;
+    }
+
+    const rows = collectTargets();
+    if (!rows.length) {
+      alert('No planning rows selected for permit application.');
+      return;
+    }
+
+    const commonInput = {
+      USERNAME: sessionInputs.USERNAME,
+      PASSWORD: sessionInputs.PASSWORD,
+      TITLE: title,
+      DESCRIPTION: document.getElementById('permitDescription').value,
+      FUNCTIONAL_LOCATION: document.getElementById('permitFunctionalLocation').value.trim(),
+      WORK_CENTER: document.getElementById('permitWorkCenter').value.trim(),
+      NO_OF_PERSON: document.getElementById('permitNoOfPerson').value,
+      PERMIT_TYPE: document.getElementById('permitType').value,
+      CPF_NO: sessionInputs.CPF_NO
+    };
+
+    try {
+      for (const row of rows) {
+        const reqNo = await runPermitFlowForRow(row, commonInput);
+        upsertById('permit_applications', {
+          equipment_tag: row.equipment_tag,
+          TITLE: commonInput.TITLE,
+          PERMIT_TYPE: commonInput.PERMIT_TYPE,
+          REQUISITION_NO: reqNo,
+          applied_by: username,
+          applied_on: new Date().toISOString()
+        }, 'PMT');
+        upsertById('next_day_planning', { ...row, status: 'permit_applied' }, 'PLAN');
+      }
+      sessionStorage.removeItem('last_successful_step_index');
+      message.textContent = `Permit flow completed for ${rows.length} item(s).`;
+      renderPlanning();
+      renderTargets();
+      renderSummary();
+    } catch (_) {
+      // Resume is handled via Continue button.
+    }
+  });
+
+  copyDraftBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(emailDraft.value || '');
+      message.textContent = 'Email draft copied to clipboard.';
+    } catch (_) {
+      message.textContent = 'Copy failed. Please copy manually from text area.';
+    }
+  };
+
+  window.addEventListener('atr-db-updated', () => {
+    renderPlanning();
+    renderTargets();
+    renderSummary();
+  });
+
+  renderPlanning();
+  renderTargets();
+  renderSummary();
+}
+
 function setupSyncStatusUI() {
   const existing = document.getElementById('syncStatusBanner');
   if (existing) return;
@@ -1354,6 +1634,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupInspectionPage();
   setupObservationPage();
   setupRequisitionPage();
+  setupPermitPlanningPage();
   setupAdminPanel();
   setupDashboard();
 

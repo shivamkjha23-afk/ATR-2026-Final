@@ -1,0 +1,27 @@
+{
+  "title": "Apply permit-z2-cleaned",
+  "notes": "Cleaned script using stable selectors and runtime placeholders. Removed menu open/back/usage double-click/long text/redundant navigation.",
+  "runtime_placeholders": ["USERNAME", "PASSWORD", "TITLE", "DESCRIPTION", "FUNCTIONAL_LOCATION", "EQUIPMENT", "WORK_CENTER", "NO_OF_PERSON", "PERMIT_TYPE"],
+  "steps": [
+    { "action": "login", "selector": { "aria-label": "Enter Email Username" }, "value": "{{USERNAME}}" },
+    { "action": "type", "selector": { "aria-label": "Password" }, "value": "{{PASSWORD}}" },
+    { "action": "press", "key": "Enter" },
+    { "action": "search_app", "selector": { "role": "searchbox", "text": "Search In: Apps" }, "value": "IW21" },
+    { "action": "set_field", "selector": { "aria-label": "Notification Type Required" }, "value": "Z2" },
+    { "action": "set_field", "selector": { "aria-label": "Short Text" }, "value": "{{TITLE}}" },
+    { "action": "set_field", "selector": { "aria-label": "Functional loc." }, "value": "{{FUNCTIONAL_LOCATION}}" },
+    { "action": "set_field", "selector": { "aria-label": "Equipment" }, "value": "{{EQUIPMENT}}" },
+    { "action": "set_field", "selector": { "aria-label": "Planner Group" }, "value": "INP" },
+    { "action": "set_field", "selector": { "aria-label": "Main WorkCtr" }, "value": "{{WORK_CENTER}}" },
+    { "action": "set_field", "selector": { "aria-label": "Person Involved(Nos) Required" }, "value": "{{NO_OF_PERSON}}" },
+    { "action": "set_field", "selector": { "text": "WCM Operation" }, "value": "WCM" },
+    { "action": "set_field", "selector": { "text": "Permit Required" }, "value": "Permit require" },
+    { "action": "open_permit_create", "selector": { "role": "button", "text": "Create" } },
+    { "action": "set_field", "selector": { "aria-label": "Work Center Required" }, "value": "{{WORK_CENTER}}" },
+    { "action": "set_field", "selector": { "aria-label": "Usage" }, "value": "{{PERMIT_TYPE}}" },
+    { "action": "save", "selector": { "role": "button", "text": "Save" } },
+    { "action": "capture_requisition_no", "source": "status_bar" },
+    { "action": "release", "selector": { "aria-label": "Release" } },
+    { "action": "save", "selector": { "role": "button", "text": "Save" } }
+  ]
+}
