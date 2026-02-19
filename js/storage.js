@@ -19,6 +19,8 @@ const DB_TEMPLATE = {
   inspections: [],
   observations: [],
   requisitions: [],
+  next_day_planning: [],
+  permit_applications: [],
   users: [],
   images: {},
   _meta: { last_updated: '' }
@@ -27,7 +29,7 @@ const DB_TEMPLATE = {
 const PRIMARY_RUNTIME_DOC_PATH = { collection: 'runtime', id: 'runtime' };
 const LEGACY_RUNTIME_DOC_PATH = { collection: 'atr2026', id: 'runtime' };
 const RUNTIME_CHUNKS_COLLECTION = 'runtime_chunks';
-const RUNTIME_COLLECTION_KEYS = ['inspections', 'observations', 'requisitions', 'users', 'images'];
+const RUNTIME_COLLECTION_KEYS = ['inspections', 'observations', 'requisitions', 'next_day_planning', 'permit_applications', 'users', 'images'];
 const MAX_CHUNK_CHARS = 350000;
 const MAX_BATCH_OPS = 450;
 const MAX_BATCH_BYTES = 8 * 1024 * 1024;
@@ -120,6 +122,8 @@ function buildCloudMetaPayload(db) {
     inspections: (db.inspections || []).length,
     observations: (db.observations || []).length,
     requisitions: (db.requisitions || []).length,
+    next_day_planning: (db.next_day_planning || []).length,
+    permit_applications: (db.permit_applications || []).length,
     users: (db.users || []).length,
     images: Object.keys(db.images || {}).length
   };
