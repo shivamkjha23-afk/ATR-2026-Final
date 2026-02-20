@@ -1407,6 +1407,21 @@ function setupPermitPlanningPage() {
   sapPasswordInput.value = sessionData.SAP_PASSWORD || '';
   sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
 
+  const bookmarkletLink = document.getElementById('sugamBookmarkletLink');
+  const copyBookmarkletBtn = document.getElementById('copySugamBookmarkletBtn');
+  const bookmarkletCode = buildSugamBookmarkletCode();
+  if (bookmarkletLink) bookmarkletLink.href = bookmarkletCode;
+  if (copyBookmarkletBtn) {
+    copyBookmarkletBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(bookmarkletCode);
+        message.textContent = 'Bookmarklet code copied. Add a new browser bookmark and paste as URL.';
+      } catch (_) {
+        message.textContent = 'Copy failed. Drag the bookmarklet button to your bookmarks bar instead.';
+      }
+    };
+  }
+
   function toStepLabel(step) {
     if (step.label) return step.label;
     const action = String(step.action || '').replace(/_/g, ' ').trim();
@@ -1523,116 +1538,45 @@ function setupPermitPlanningPage() {
     return rawValue.replace(/{{\s*([A-Z0-9_]+)\s*}}/g, (_, token) => String(runtime[token] ?? ''));
   }
 
-  function canControlSapWindow(sapWindow) {
-    try {
-      return Boolean(sapWindow && sapWindow.document && sapWindow.location && sapWindow.location.href);
-    } catch (_) {
-      return false;
-    }
+
+  function encodePrefillPayload(payload = {}) {
+    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   }
 
-  function downloadPermitScript(filename, content) {
-    const blob = new Blob([content], { type: 'text/javascript;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  function buildSugamPrefillUrl(runtime = {}) {
+    const payload = encodePrefillPayload({
+      runtime,
+      steps: permitSteps,
+      generated_at: new Date().toISOString()
+    });
+    return `${SAP_WEBSITE_URL}?atr_prefill=${encodeURIComponent(payload)}`;
   }
 
-  function buildPuppeteerScript(runtime = {}) {
-    const stepsPayload = JSON.stringify(permitSteps, null, 2);
-    const runtimePayload = JSON.stringify(runtime, null, 2);
-    return `const puppeteer = require('puppeteer');
-
-const SAP_URL = '${SAP_WEBSITE_URL}';
-const STEPS = ${stepsPayload};
-const RUNTIME = ${runtimePayload};
-
-function resolveValue(raw) {
-  if (typeof raw !== 'string') return raw;
-  return raw.replace(/{{\\s*([A-Z0-9_]+)\\s*}}/g, (_, token) => String(RUNTIME[token] ?? ''));
-}
-
-async function findTarget(page, selector = {}) {
-  if (!selector || typeof selector !== 'object') return null;
-  if (selector['aria-label']) return page.locator('[aria-label="' + selector['aria-label'].replace(/"/g, '\\"') + '"]');
-  if (selector.text) return page.locator('text=' + selector.text);
-  if (selector.id) return page.locator('#' + selector.id);
-  return null;
-}
-
-(async () => {
-  const browser = await puppeteer.launch({ headless: false, defaultViewport: null });
-  const page = await browser.newPage();
-  await page.goto(SAP_URL, { waitUntil: 'domcontentloaded' });
-
-  for (const step of STEPS) {
-    const value = resolveValue(step.value);
-    const target = await findTarget(page, step.selector || {});
-
-    if (step.action === 'press') {
-      await page.keyboard.press(step.key || 'Enter');
-      continue;
-    }
-
-    if (step.action === 'capture_requisition_no') continue;
-
-    if (!target) {
-      console.log('Skip step (selector not mapped):', step.action, step.selector || {});
-      continue;
-    }
-
-    await target.click({ timeout: 15000 });
-    if (value !== undefined && value !== null && value !== '') {
-      await target.fill(String(value), { timeout: 15000 });
-    }
-
-    if (step.action === 'search_app' || step.action === 'set_field' || step.action === 'login' || step.action === 'type') {
-      await page.keyboard.press('Enter');
-    }
-  }
-})();
-`;
+  function buildSugamBookmarkletCode() {
+    return `javascript:(function(){const wait=(ms)=>new Promise((r)=>setTimeout(r,ms));const q=(s)=>Array.from(document.querySelectorAll(s));const eq=(a,b)=>String(a||'').trim().toLowerCase()===String(b||'').trim().toLowerCase();const parse=()=>{const u=new URL(location.href);const p=u.searchParams.get('atr_prefill')||u.hash.replace(/^#atr_prefill=/,'');if(!p){alert('No atr_prefill payload found in URL. Open SUGAM from ATR Permit Planning first.');return null;}try{return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(p)))));}catch(e){alert('Unable to decode prefill payload.');return null;}};const resolve=(raw,r)=>typeof raw==='string'?raw.replace(/{{\s*([A-Z0-9_]+)\s*}}/g,(_,t)=>String(r[t]??'')):raw;const find=(selector={})=>{if(selector['aria-label']){const exact=document.querySelector('[aria-label="'+selector['aria-label'].replace(/"/g,'\\"')+'"]');if(exact)return exact;const near=q('[aria-label]').find((el)=>eq(el.getAttribute('aria-label'),selector['aria-label'])||String(el.getAttribute('aria-label')||'').toLowerCase().includes(String(selector['aria-label']).toLowerCase()));if(near)return near;}if(selector.id){const byId=document.getElementById(selector.id);if(byId)return byId;}if(selector.role&&selector.text){const roleHits=q('[role="'+selector.role+'"]');const found=roleHits.find((el)=>String(el.textContent||'').toLowerCase().includes(String(selector.text).toLowerCase()));if(found)return found;}if(selector.text){const pool=q('button,[role="button"],input,textarea,select,[aria-label],label,span,div');const found=pool.find((el)=>String(el.textContent||el.value||el.getAttribute('aria-label')||'').toLowerCase().includes(String(selector.text).toLowerCase()));if(found)return found;}return null;};const set=(el,val)=>{if(!el)return;el.focus();if('value'in el){el.value=String(val??'');el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}else{el.click();}};const press=(k='Enter')=>{const tgt=document.activeElement||document.body;tgt.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true}));tgt.dispatchEvent(new KeyboardEvent('keyup',{key:k,bubbles:true}));};(async()=>{const payload=parse();if(!payload)return;const steps=Array.isArray(payload.steps)?payload.steps:[];const runtime=payload.runtime||{};for(let i=0;i<steps.length;i+=1){const step=steps[i]||{};const target=find(step.selector||{});const value=resolve(step.value,runtime);if(step.action==='capture_requisition_no')continue;if(step.action==='press'){press(step.key||'Enter');await wait(350);continue;}if(target){target.click();if(value!==undefined&&value!==null&&value!=='')set(target,value);}if(['search_app','set_field','login','type'].includes(step.action))press('Enter');await wait(350);}alert('SUGAM prefill steps executed. Verify fields before Save/Release.');})();})();`;
   }
 
   async function runPermitFlowForRow(row, commonInput) {
-    const sapWindow = window.open(SAP_WEBSITE_URL, '_blank');
+    const runtime = { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' };
+    const launchUrl = buildSugamPrefillUrl(runtime);
+    const sapWindow = window.open(launchUrl, '_blank');
     if (!sapWindow) {
-      throw new Error('Popup blocked. Allow popups to open SAP website and run steps.');
+      throw new Error('Popup blocked. Allow popups to open SUGAM prefill links.');
     }
 
     try {
-      await navigator.clipboard.writeText(`${commonInput.USERNAME}
-${commonInput.PASSWORD}`);
-      message.textContent = 'SAP opened. Username/password copied to clipboard for quick paste on login page.';
+      await navigator.clipboard.writeText(buildSugamBookmarkletCode());
+      message.textContent = 'SUGAM tab opened with payload. Bookmarklet code copied—save it once and click inside logged-in SUGAM tab.';
     } catch (_) {
-      message.textContent = 'SAP opened. Browser blocked clipboard write; paste SAP username/password manually.';
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-
-    if (!canControlSapWindow(sapWindow)) {
-      const runtime = { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' };
-      const script = buildPuppeteerScript(runtime);
-      const safeTag = String(row.equipment_tag || row.id || 'row').replace(/[^a-z0-9_-]/gi, '_');
-      const filename = `permit-automation-${safeTag}.js`;
-      downloadPermitScript(filename, script);
-
-      renderProgress(-1, 'idle');
-      message.textContent = `Browser security blocked direct automation on SAP tab. Downloaded ${filename}; run it with Node + Puppeteer to execute Apply permit-z2 steps automatically.`;
-      return row.__REQUISITION_NO || generateRequisitionNo(row);
+      message.textContent = 'SUGAM tab opened with payload. Copy the bookmarklet from Permit Planning and click it in logged-in SUGAM tab.';
     }
 
     for (let i = 0; i < permitSteps.length; i += 1) {
       const step = permitSteps[i];
       renderProgress(i, 'running');
-      const value = resolvePermitValue(step.value, { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' });
-      message.textContent = `SAP step ${i + 1}/${permitSteps.length}: ${toStepLabel(step)}${value ? ` → ${value}` : ''}`;
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      const value = resolvePermitValue(step.value, runtime);
+      message.textContent = `Prepared step ${i + 1}/${permitSteps.length}: ${toStepLabel(step)}${value ? ` → ${value}` : ''}`;
+      await new Promise((resolve) => setTimeout(resolve, 70));
       if (step.action === 'capture_requisition_no') row.__REQUISITION_NO = generateRequisitionNo(row);
     }
 
