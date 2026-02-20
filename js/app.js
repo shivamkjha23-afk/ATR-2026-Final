@@ -1355,7 +1355,7 @@ function buildPermitEmailDraft(rows = []) {
 function setupPermitPlanningPage() {
   if (document.body.dataset.page !== 'permit-planning') return;
 
-  const SAP_WEBSITE_URL = localStorage.getItem('atr2026_sap_website_url') || 'https://sugam.gail.co.in/';
+  const SAP_WEBSITE_URL = 'https://sugam.gail.co.in/';
   const PERMIT_AUTOMATION_CONFIG = 'Apply permit-z2.json';
   const fallbackPermitSteps = [
     { action: 'login', label: 'Login' },
