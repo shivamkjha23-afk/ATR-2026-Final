@@ -32,7 +32,7 @@
       <main class="page-main">
         <section class="form-card">
           <h2>Permit Request Defaults</h2>
-          <p class="hint" id="permitSessionHint">Set common values once. Row-level inputs stay in the permit request table.</p>
+          <p class="hint" id="permitSessionHint">Set common values once. SAP login here is separate from website login. If browser blocks direct SAP tab automation, a ready-to-run Puppeteer script is downloaded automatically.</p>
         </section>
 
         <section class="table-card">
@@ -54,6 +54,12 @@
           <h2>Permit Request Table (Add to Cart from Planning)</h2>
           <form id="permitApplyForm">
             <div class="form-grid" style="margin-bottom: 10px;">
+              <label>SAP Username (common per user)
+                <input id="permitSapUsername" autocomplete="username" placeholder="SAP user only" />
+              </label>
+              <label>SAP Password (common per user)
+                <input id="permitSapPassword" type="password" autocomplete="current-password" placeholder="SAP password only" />
+              </label>
               <label>Common WORK_CENTER (for all selected rows)
                 <input id="permitCommonWorkCenter" required />
               </label>
