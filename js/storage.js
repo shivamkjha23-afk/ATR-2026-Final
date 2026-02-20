@@ -39,7 +39,12 @@ let firebaseApp = null;
 let firebaseAuth = null;
 let firebaseDb = null;
 
-let runtimeDB = structuredClone(DB_TEMPLATE);
+function deepClone(value) {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+
+let runtimeDB = deepClone(DB_TEMPLATE);
 let syncInFlight = false;
 let syncPending = false;
 let suppressSync = false;
