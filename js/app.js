@@ -1403,7 +1403,7 @@ function setupPermitPlanningPage() {
   const sessionData = getPermitSessionData(username);
   cpfInput.value = sessionData.CPF_NO || '';
   commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
-  sapUsernameInput.value = sessionData.SAP_USERNAME || '';
+  sapUsernameInput.value = sessionData.SAP_USERNAME || username || '';
   sapPasswordInput.value = sessionData.SAP_PASSWORD || '';
   sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
 
@@ -1608,10 +1608,17 @@ async function findTarget(page, selector = {}) {
     try {
       await navigator.clipboard.writeText(`${commonInput.USERNAME}
 ${commonInput.PASSWORD}`);
-      message.textContent = 'SAP opened. Username/password copied to clipboard.';
+      message.textContent = 'SAP opened. Username/password copied to clipboard for quick paste on login page.';
     } catch (_) {
-      message.textContent = 'SAP opened. Clipboard access blocked; paste SAP username/password manually.';
+      message.textContent = 'SAP opened. Browser blocked clipboard write; paste SAP username/password manually.';
     }
+
+    for (let i = 0; i < permitSteps.length; i += 1) {
+      const step = permitSteps[i];
+      try {
+        renderProgress(i, 'running');
+        message.textContent = `Processing ${row.equipment_tag || row.id}: ${toStepLabel(step)}`;
+        await new Promise((resolve) => setTimeout(resolve, 350));
 
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
@@ -1676,24 +1683,16 @@ ${commonInput.PASSWORD}`);
       return;
     }
 
-    let sapUsername = sapUsernameInput.value.trim() || sessionInputs.SAP_USERNAME || '';
+    const sapUsername = sapUsernameInput.value.trim() || sessionInputs.SAP_USERNAME || '';
     if (!sapUsername) {
-      sapUsername = (window.prompt('Enter SAP username for permit application (separate from website login):', '') || '').trim();
-      if (!sapUsername) {
-        alert('SAP username is required to run permit application automation.');
-        return;
-      }
-      sapUsernameInput.value = sapUsername;
+      alert('Enter SAP username once. It will be reused for this user.');
+      return;
     }
 
-    let sapPassword = sapPasswordInput.value || sessionInputs.SAP_PASSWORD || '';
+    const sapPassword = sapPasswordInput.value || sessionInputs.SAP_PASSWORD || '';
     if (!sapPassword) {
-      sapPassword = window.prompt('Enter SAP password for permit application (separate from website login):', '') || '';
-      if (!sapPassword) {
-        alert('SAP password is required to run permit application automation.');
-        return;
-      }
-      sapPasswordInput.value = sapPassword;
+      alert('Enter SAP password once. It will be reused for this user.');
+      return;
     }
 
     setPermitSessionData(username, {
