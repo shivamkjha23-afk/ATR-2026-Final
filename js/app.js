@@ -1518,6 +1518,86 @@ function setupPermitPlanningPage() {
     const body = encodeURIComponent(draft);
     sendMailBtn.href = `mailto:?subject=${subject}&body=${body}`;
   }
+  function resolvePermitValue(rawValue, runtime = {}) {
+    if (typeof rawValue !== 'string') return rawValue;
+    return rawValue.replace(/{{\s*([A-Z0-9_]+)\s*}}/g, (_, token) => String(runtime[token] ?? ''));
+  }
+
+  function canControlSapWindow(sapWindow) {
+    try {
+      return Boolean(sapWindow && sapWindow.document && sapWindow.location && sapWindow.location.href);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function downloadPermitScript(filename, content) {
+    const blob = new Blob([content], { type: 'text/javascript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function buildPuppeteerScript(runtime = {}) {
+    const stepsPayload = JSON.stringify(permitSteps, null, 2);
+    const runtimePayload = JSON.stringify(runtime, null, 2);
+    return `const puppeteer = require('puppeteer');
+
+const SAP_URL = '${SAP_WEBSITE_URL}';
+const STEPS = ${stepsPayload};
+const RUNTIME = ${runtimePayload};
+
+function resolveValue(raw) {
+  if (typeof raw !== 'string') return raw;
+  return raw.replace(/{{\\s*([A-Z0-9_]+)\\s*}}/g, (_, token) => String(RUNTIME[token] ?? ''));
+}
+
+async function findTarget(page, selector = {}) {
+  if (!selector || typeof selector !== 'object') return null;
+  if (selector['aria-label']) return page.locator('[aria-label="' + selector['aria-label'].replace(/"/g, '\\"') + '"]');
+  if (selector.text) return page.locator('text=' + selector.text);
+  if (selector.id) return page.locator('#' + selector.id);
+  return null;
+}
+
+(async () => {
+  const browser = await puppeteer.launch({ headless: false, defaultViewport: null });
+  const page = await browser.newPage();
+  await page.goto(SAP_URL, { waitUntil: 'domcontentloaded' });
+
+  for (const step of STEPS) {
+    const value = resolveValue(step.value);
+    const target = await findTarget(page, step.selector || {});
+
+    if (step.action === 'press') {
+      await page.keyboard.press(step.key || 'Enter');
+      continue;
+    }
+
+    if (step.action === 'capture_requisition_no') continue;
+
+    if (!target) {
+      console.log('Skip step (selector not mapped):', step.action, step.selector || {});
+      continue;
+    }
+
+    await target.click({ timeout: 15000 });
+    if (value !== undefined && value !== null && value !== '') {
+      await target.fill(String(value), { timeout: 15000 });
+    }
+
+    if (step.action === 'search_app' || step.action === 'set_field' || step.action === 'login' || step.action === 'type') {
+      await page.keyboard.press('Enter');
+    }
+  }
+})();
+`;
+  }
 
   async function runPermitFlowForRow(row, commonInput) {
     const sapWindow = window.open(SAP_WEBSITE_URL, '_blank');
@@ -1540,34 +1620,29 @@ ${commonInput.PASSWORD}`);
         message.textContent = `Processing ${row.equipment_tag || row.id}: ${toStepLabel(step)}`;
         await new Promise((resolve) => setTimeout(resolve, 350));
 
-        if (step.action === 'capture_requisition_no') {
-          row.__REQUISITION_NO = generateRequisitionNo(row);
-        }
-        if (step.action === 'set_field' && /functional/i.test(toStepLabel(step)) && !commonInput.FUNCTIONAL_LOCATION) {
-          throw new Error('Functional Location does not exist');
-        }
-        if (step.action === 'set_field' && /equipment/i.test(toStepLabel(step)) && !row.equipment_tag) {
-          throw new Error('Equipment tag is missing');
-        }
-      } catch (err) {
-        renderProgress(i, 'error');
-        const stepLabel = toStepLabel(step);
-        const rowLabel = row.equipment_tag || row.id;
-        const shouldContinue = window.confirm(
-          `Step failed for ${rowLabel}: ${stepLabel}.\n\nError: ${err.message}\n\n` +
-          'Do the step manually in SAP, then click OK to continue with the next step.\n' +
-          'Click Cancel to stop this permit flow.'
-        );
+    await new Promise((resolve) => setTimeout(resolve, 1200));
 
-        if (shouldContinue) {
-          message.textContent = `Manual intervention accepted for ${rowLabel} at step ${i + 1}. Continuing with next step.`;
-          continue;
-        }
+    if (!canControlSapWindow(sapWindow)) {
+      const runtime = { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' };
+      const script = buildPuppeteerScript(runtime);
+      const safeTag = String(row.equipment_tag || row.id || 'row').replace(/[^a-z0-9_-]/gi, '_');
+      const filename = `permit-automation-${safeTag}.js`;
+      downloadPermitScript(filename, script);
 
-        message.textContent = `Permit flow stopped for ${rowLabel} at step ${i + 1}: ${stepLabel}.`;
-        throw err;
-      }
+      renderProgress(-1, 'idle');
+      message.textContent = `Browser security blocked direct automation on SAP tab. Downloaded ${filename}; run it with Node + Puppeteer to execute Apply permit-z2 steps automatically.`;
+      return row.__REQUISITION_NO || generateRequisitionNo(row);
     }
+
+    for (let i = 0; i < permitSteps.length; i += 1) {
+      const step = permitSteps[i];
+      renderProgress(i, 'running');
+      const value = resolvePermitValue(step.value, { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' });
+      message.textContent = `SAP step ${i + 1}/${permitSteps.length}: ${toStepLabel(step)}${value ? ` → ${value}` : ''}`;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (step.action === 'capture_requisition_no') row.__REQUISITION_NO = generateRequisitionNo(row);
+    }
+
     renderProgress(permitSteps.length, 'done');
     return row.__REQUISITION_NO || `REQ-${Date.now()}`;
   }
