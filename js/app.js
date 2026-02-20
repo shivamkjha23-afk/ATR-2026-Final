@@ -1608,10 +1608,17 @@ async function findTarget(page, selector = {}) {
     try {
       await navigator.clipboard.writeText(`${commonInput.USERNAME}
 ${commonInput.PASSWORD}`);
-      message.textContent = 'SAP opened. Username/password copied to clipboard.';
+      message.textContent = 'SAP opened. Username/password copied to clipboard for quick paste on login page.';
     } catch (_) {
-      message.textContent = 'SAP opened. Clipboard access blocked; paste SAP username/password manually.';
+      message.textContent = 'SAP opened. Browser blocked clipboard write; paste SAP username/password manually.';
     }
+
+    for (let i = 0; i < permitSteps.length; i += 1) {
+      const step = permitSteps[i];
+      try {
+        renderProgress(i, 'running');
+        message.textContent = `Processing ${row.equipment_tag || row.id}: ${toStepLabel(step)}`;
+        await new Promise((resolve) => setTimeout(resolve, 350));
 
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
