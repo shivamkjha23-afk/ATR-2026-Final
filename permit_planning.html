@@ -54,6 +54,12 @@
           <h2>Permit Request Table (Add to Cart from Planning)</h2>
           <form id="permitApplyForm">
             <div class="form-grid" style="margin-bottom: 10px;">
+              <label>SAP Username (common per user)
+                <input id="permitSapUsername" autocomplete="username" required />
+              </label>
+              <label>SAP Password (common per user)
+                <input id="permitSapPassword" type="password" autocomplete="current-password" required />
+              </label>
               <label>Common WORK_CENTER (for all selected rows)
                 <input id="permitCommonWorkCenter" required />
               </label>

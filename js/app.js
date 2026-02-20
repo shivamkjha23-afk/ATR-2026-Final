@@ -1390,6 +1390,8 @@ function setupPermitPlanningPage() {
   const sendMailBtn = document.getElementById('sendPermitEmailBtn');
   const requestBody = document.getElementById('permitRequestTableBody');
   const commonWorkCenterInput = document.getElementById('permitCommonWorkCenter');
+  const sapUsernameInput = document.getElementById('permitSapUsername');
+  const sapPasswordInput = document.getElementById('permitSapPassword');
 
   const username = String(getLoggedInUser() || '').trim().toLowerCase();
 
@@ -1401,6 +1403,8 @@ function setupPermitPlanningPage() {
   const sessionData = getPermitSessionData(username);
   cpfInput.value = sessionData.CPF_NO || '';
   commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
+  sapUsernameInput.value = sessionData.SAP_USERNAME || username || '';
+  sapPasswordInput.value = sessionData.SAP_PASSWORD || '';
   sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
 
   function toStepLabel(step) {
@@ -1521,6 +1525,14 @@ function setupPermitPlanningPage() {
       throw new Error('Popup blocked. Allow popups to open SAP website and run steps.');
     }
 
+    try {
+      await navigator.clipboard.writeText(`${commonInput.USERNAME}
+${commonInput.PASSWORD}`);
+      message.textContent = 'SAP opened. Username/password copied to clipboard for quick paste on login page.';
+    } catch (_) {
+      message.textContent = 'SAP opened. Browser blocked clipboard write; paste SAP username/password manually.';
+    }
+
     for (let i = 0; i < permitSteps.length; i += 1) {
       const step = permitSteps[i];
       try {
@@ -1596,9 +1608,23 @@ function setupPermitPlanningPage() {
       return;
     }
 
+    const sapUsername = sapUsernameInput.value.trim() || sessionInputs.SAP_USERNAME || '';
+    if (!sapUsername) {
+      alert('Enter SAP username once. It will be reused for this user.');
+      return;
+    }
+
+    const sapPassword = sapPasswordInput.value || sessionInputs.SAP_PASSWORD || '';
+    if (!sapPassword) {
+      alert('Enter SAP password once. It will be reused for this user.');
+      return;
+    }
+
     setPermitSessionData(username, {
       CPF_NO: cpfNo,
-      WORK_CENTER: commonWorkCenter
+      WORK_CENTER: commonWorkCenter,
+      SAP_USERNAME: sapUsername,
+      SAP_PASSWORD: sapPassword
     });
 
     const titleById = new Map(Array.from(document.querySelectorAll('.permit-title-input')).map((el) => [el.dataset.id, el.value.trim()]));
@@ -1616,11 +1642,12 @@ function setupPermitPlanningPage() {
         }
 
         const commonInput = {
-          USERNAME: username,
-          PASSWORD: '',
+          USERNAME: sapUsername,
+          PASSWORD: sapPassword,
           TITLE: title,
           DESCRIPTION: '',
           FUNCTIONAL_LOCATION: (row.functional_location || '').trim(),
+          EQUIPMENT: (row.equipment_tag || '').trim(),
           WORK_CENTER: commonWorkCenter,
           NO_OF_PERSON: noOfPerson,
           PERMIT_TYPE: permitType,
