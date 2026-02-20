@@ -1516,7 +1516,7 @@ function setupPermitPlanningPage() {
   }
 
   async function runPermitFlowForRow(row, commonInput) {
-    const sapWindow = window.open(SAP_WEBSITE_URL, '_blank', 'noopener');
+    const sapWindow = window.open(SAP_WEBSITE_URL, '_blank');
     if (!sapWindow) {
       throw new Error('Popup blocked. Allow popups to open SAP website and run steps.');
     }
@@ -1539,7 +1539,20 @@ function setupPermitPlanningPage() {
         }
       } catch (err) {
         renderProgress(i, 'error');
-        message.textContent = `Step failed for ${row.equipment_tag || row.id}: ${toStepLabel(step)}. Error: ${err.message}`;
+        const stepLabel = toStepLabel(step);
+        const rowLabel = row.equipment_tag || row.id;
+        const shouldContinue = window.confirm(
+          `Step failed for ${rowLabel}: ${stepLabel}.\n\nError: ${err.message}\n\n` +
+          'Do the step manually in SAP, then click OK to continue with the next step.\n' +
+          'Click Cancel to stop this permit flow.'
+        );
+
+        if (shouldContinue) {
+          message.textContent = `Manual intervention accepted for ${rowLabel} at step ${i + 1}. Continuing with next step.`;
+          continue;
+        }
+
+        message.textContent = `Permit flow stopped for ${rowLabel} at step ${i + 1}: ${stepLabel}.`;
         throw err;
       }
     }
