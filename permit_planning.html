@@ -32,7 +32,12 @@
       <main class="page-main">
         <section class="form-card">
           <h2>Permit Request Defaults</h2>
-          <p class="hint" id="permitSessionHint">Set common values once. If browser blocks direct SAP tab automation, a ready-to-run Puppeteer script is downloaded automatically.</p>
+          <p class="hint" id="permitSessionHint">Use manual SSO login in SUGAM, then click bookmarklet to auto-fill values from URL payload.</p>
+          <div class="actions" style="margin-top:10px;">
+            <a class="btn" id="sugamBookmarkletLink" href="#" title="Drag to bookmarks bar">Drag this to bookmarks bar: SUGAM Prefill</a>
+            <button class="btn" id="copySugamBookmarkletBtn" type="button">Copy Bookmarklet Code</button>
+          </div>
+          <p class="hint" id="bookmarkletHint">How to use: 1) Login to SUGAM manually. 2) Click Apply Permit here to open prepared URLs. 3) In SUGAM tab, click bookmarklet to prefill fields.</p>
         </section>
 
         <section class="table-card">
