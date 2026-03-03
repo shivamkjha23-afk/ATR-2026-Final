@@ -491,9 +491,19 @@ function normalizeInspectionFormValue(value) {
   return String(value || '').trim();
 }
 
+function normalizeScaffoldingRequiredValue(value) {
+  if (value === true || value === 'true') return 'true';
+  if (value === false || value === 'false') return 'false';
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['yes', 'y', 'required', 'true', '1'].includes(normalized)) return 'true';
+  if (['no', 'n', 'not required', 'false', '0'].includes(normalized)) return 'false';
+  return '';
+}
+
 function normalizeInspectionPayload(payload) {
   const normalizedInspectionType = normalizeInspectionTypeValue(payload.inspection_type);
   const normalizedInspectionForm = normalizeInspectionFormValue(payload.inspection_form || payload.inspection_possible);
+  const normalizedScaffoldingRequired = normalizeScaffoldingRequiredValue(payload.scaffolding_required);
   return {
     id: payload.id || '',
     unit_name: payload.unit_name || '',
@@ -506,6 +516,7 @@ function normalizeInspectionPayload(payload) {
     inspection_possible: normalizedInspectionForm,
     inspection_date: payload.inspection_date || '',
     status: payload.status || '',
+    scaffolding_required: normalizedScaffoldingRequired,
     final_status: payload.final_status || '',
     remarks: payload.remarks || '',
     observation: payload.observation || '',
@@ -530,6 +541,7 @@ const INSPECTION_FORM_FIELDS = [
   'inspection_form',
   'inspection_date',
   'status',
+  'scaffolding_required',
   'final_status',
   'remarks',
   'observation',
@@ -557,6 +569,7 @@ function remapInspectionExcelRow(row = {}) {
     inspectionform: 'inspection_form',
     inspectiondate: 'inspection_date',
     status: 'status',
+    scaffoldingrequired: 'scaffolding_required',
     finalstatus: 'final_status',
     remarks: 'remarks',
     observation: 'observation',
@@ -719,6 +732,7 @@ function setupInspectionPage() {
       inspection_form: document.getElementById('inspection_form').value,
       inspection_date: document.getElementById('inspection_date').value,
       status: document.getElementById('status').value,
+      scaffolding_required: document.getElementById('scaffolding_required').value,
       final_status: document.getElementById('final_status').value,
       remarks: document.getElementById('remarks').value,
       observation: document.getElementById('observation').value,

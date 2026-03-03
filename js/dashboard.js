@@ -1,6 +1,7 @@
 const DASHBOARD_CHARTS = {};
 const DASHBOARD_STATE = {
   vesselInspectionScopeFilter: 'All',
+  vesselInspectionStatusFilter: 'All',
   steamTrapInspectionScopeFilter: 'All'
 };
 
@@ -301,9 +302,13 @@ function renderUnitTable(headers, rows) {
 function sectionInspection(title, type, chartId, options = {}) {
   const includeOpportunity = options.includeOpportunity === true;
   const enableInspectionScopeFilter = options.enableInspectionScopeFilter === true;
+  const enableInspectionStatusFilter = options.enableInspectionStatusFilter === true;
   const selectedInspectionScopeFilter = options.inspectionScopeFilter || 'All';
+  const selectedInspectionStatusFilter = options.inspectionStatusFilter || 'All';
   const inspectionScopeStateKey = options.inspectionScopeStateKey || '';
+  const inspectionStatusStateKey = options.inspectionStatusStateKey || '';
   const normalizedSelectedForm = normalizeInspectionForm(selectedInspectionScopeFilter);
+  const normalizedSelectedStatus = String(selectedInspectionStatusFilter || '').trim().toLowerCase();
 
   const baseRows = getCollection('inspections').filter((r) => r.equipment_type === type);
   const inspectionScopeOptions = ['All', ...Array.from(new Set(baseRows
@@ -312,9 +317,19 @@ function sectionInspection(title, type, chartId, options = {}) {
     .sort((a, b) => a.localeCompare(b))
   ];
 
-  const source = normalizedSelectedForm === 'all'
+  const inspectionStatusOptions = ['All', ...Array.from(new Set(baseRows
+    .map((r) => String(r.status || '').trim())
+    .filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b))
+  ];
+
+  const scopeFilteredRows = normalizedSelectedForm === 'all'
     ? baseRows
     : baseRows.filter((r) => normalizeInspectionForm(r.inspection_form || r.inspection_possible) === normalizedSelectedForm);
+
+  const source = normalizedSelectedStatus === 'all'
+    ? scopeFilteredRows
+    : scopeFilteredRows.filter((r) => String(r.status || '').trim().toLowerCase() === normalizedSelectedStatus);
 
   const summary = computeSummary(source, { mode: 'inspection' });
   const grouped = groupByUnit(source);
@@ -342,6 +357,13 @@ function sectionInspection(title, type, chartId, options = {}) {
     }).join('')}</div>`
     : '';
 
+  const statusFilterHtml = enableInspectionStatusFilter
+    ? `<div class="filter-tabs dashboard-filter-tabs">${inspectionStatusOptions.map((inspectionStatus) => {
+      const active = String(inspectionStatus || '').trim().toLowerCase() === normalizedSelectedStatus;
+      return `<button type="button" class="btn tab-btn inspection-status-filter-btn ${active ? 'active' : ''}" data-inspection-status="${inspectionStatus}" data-inspection-status-key="${inspectionStatusStateKey}">${inspectionStatus}</button>`;
+    }).join('')}</div>`
+    : '';
+
   const tableHeaders = includeOpportunity
     ? ['Unit', 'Planned', 'Opportunity Based', 'Completed Today', 'Total Completed']
     : ['Unit', 'Total Planned', 'Total Completed', `Today\'s Completed`];
@@ -350,6 +372,7 @@ function sectionInspection(title, type, chartId, options = {}) {
     <section class="table-card">
       <h2>${title}</h2>
       ${filterHtml}
+      ${statusFilterHtml}
       ${renderSummaryCards(cards)}
       ${type === 'Vessel' && includeOpportunity ? renderVesselProgressTable(source) : renderUnitTable(tableHeaders, tableRows)}
       <article class="chart-card"><canvas id="${chartId}"></canvas></article>
@@ -432,8 +455,11 @@ function renderDashboard() {
   const vessel = sectionInspection('Vessel Dashboard', 'Vessel', 'vesselAnalyticsChart', {
     includeOpportunity: true,
     enableInspectionScopeFilter: true,
+    enableInspectionStatusFilter: true,
     inspectionScopeStateKey: 'vesselInspectionScopeFilter',
-    inspectionScopeFilter: DASHBOARD_STATE.vesselInspectionScopeFilter
+    inspectionScopeFilter: DASHBOARD_STATE.vesselInspectionScopeFilter,
+    inspectionStatusStateKey: 'vesselInspectionStatusFilter',
+    inspectionStatusFilter: DASHBOARD_STATE.vesselInspectionStatusFilter
   });
   const pipeline = sectionInspection('Pipeline Dashboard', 'Pipeline', 'pipelineAnalyticsChart');
   const steamTrap = sectionInspection('Steam Trap Dashboard', 'Steam Trap', 'steamTrapAnalyticsChart', {
@@ -462,6 +488,16 @@ function renderDashboard() {
       const scopeKey = btn.dataset.inspectionScopeKey;
       if (!scopeKey || !(scopeKey in DASHBOARD_STATE)) return;
       DASHBOARD_STATE[scopeKey] = btn.dataset.inspectionScope || 'All';
+      renderDashboard();
+    });
+  });
+
+  const inspectionStatusFilterButtons = root.querySelectorAll('.inspection-status-filter-btn');
+  inspectionStatusFilterButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const statusKey = btn.dataset.inspectionStatusKey;
+      if (!statusKey || !(statusKey in DASHBOARD_STATE)) return;
+      DASHBOARD_STATE[statusKey] = btn.dataset.inspectionStatus || 'All';
       renderDashboard();
     });
   });
