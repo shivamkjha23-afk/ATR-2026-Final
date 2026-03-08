@@ -32,12 +32,8 @@
       <main class="page-main">
         <section class="form-card">
           <h2>Permit Request Defaults</h2>
-          <p class="hint" id="permitSessionHint">Use manual SSO login in SUGAM, then click bookmarklet to auto-fill values from URL payload.</p>
-          <div class="actions" style="margin-top:10px;">
-            <a class="btn" id="sugamBookmarkletLink" href="#" title="Drag to bookmarks bar">Drag this to bookmarks bar: SUGAM Prefill</a>
-            <button class="btn" id="copySugamBookmarkletBtn" type="button">Copy Bookmarklet Code</button>
-          </div>
-          <p class="hint" id="bookmarkletHint">How to use: 1) Login to SUGAM manually. 2) Click Apply Permit here to open prepared URLs. 3) In SUGAM tab, click bookmarklet to prefill fields.</p>
+          <p class="hint" id="permitSessionHint">Login to SUGAM first in another tab. Apply Permit will open/reuse the same browser window named <strong>sugam</strong> and guide simple recorded steps.</p>
+          <p class="hint" id="bookmarkletHint">No bookmarklet needed. The flow starts from SUGAM search box and keeps only required steps. Enter requisition number from SUGAM in the table before saving summary.</p>
         </section>
 
         <section class="table-card">
@@ -59,12 +55,6 @@
           <h2>Permit Request Table (Add to Cart from Planning)</h2>
           <form id="permitApplyForm">
             <div class="form-grid" style="margin-bottom: 10px;">
-              <label>SAP Username (common per user)
-                <input id="permitSapUsername" autocomplete="username" required />
-              </label>
-              <label>SAP Password (common per user)
-                <input id="permitSapPassword" type="password" autocomplete="current-password" required />
-              </label>
               <label>Common WORK_CENTER (for all selected rows)
                 <input id="permitCommonWorkCenter" required />
               </label>
@@ -75,7 +65,7 @@
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Apply</th><th>Tag</th><th>Name</th><th>Functional Location</th><th>Title</th><th>Permit Type</th><th>No. of Person</th><th>CPF</th></tr>
+                  <tr><th>Apply</th><th>Tag</th><th>Name</th><th>Functional Location</th><th>Title</th><th>Permit Type</th><th>No. of Person</th><th>Requisition No.</th><th>CPF</th></tr>
                 </thead>
                 <tbody id="permitRequestTableBody"></tbody>
               </table>

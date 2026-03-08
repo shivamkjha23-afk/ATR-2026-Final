@@ -1,27 +1,374 @@
 {
-  "title": "Apply permit-z2-cleaned",
-  "notes": "Cleaned script using stable selectors and runtime placeholders. Removed menu open/back/usage double-click/long text/redundant navigation.",
-  "runtime_placeholders": ["USERNAME", "PASSWORD", "TITLE", "DESCRIPTION", "FUNCTIONAL_LOCATION", "EQUIPMENT", "WORK_CENTER", "NO_OF_PERSON", "PERMIT_TYPE"],
+  "title": "Apply permit-z2-recorded-search-start",
+  "notes": "Recorded flow starts from SUGAM search (user already logged in). Request number is captured after Save.",
+  "runtime_placeholders": [
+    "TITLE",
+    "FUNCTIONAL_LOCATION",
+    "EQUIPMENT",
+    "WORK_CENTER",
+    "NO_OF_PERSON",
+    "PERMIT_TYPE"
+  ],
   "steps": [
-    { "action": "login", "selector": { "aria-label": "Enter Email Username" }, "value": "{{USERNAME}}" },
-    { "action": "type", "selector": { "aria-label": "Password" }, "value": "{{PASSWORD}}" },
-    { "action": "press", "key": "Enter" },
-    { "action": "search_app", "selector": { "role": "searchbox", "text": "Search In: Apps" }, "value": "IW21" },
-    { "action": "set_field", "selector": { "aria-label": "Notification Type Required" }, "value": "Z2" },
-    { "action": "set_field", "selector": { "aria-label": "Short Text" }, "value": "{{TITLE}}" },
-    { "action": "set_field", "selector": { "aria-label": "Functional loc." }, "value": "{{FUNCTIONAL_LOCATION}}" },
-    { "action": "set_field", "selector": { "aria-label": "Equipment" }, "value": "{{EQUIPMENT}}" },
-    { "action": "set_field", "selector": { "aria-label": "Planner Group" }, "value": "INP" },
-    { "action": "set_field", "selector": { "aria-label": "Main WorkCtr" }, "value": "{{WORK_CENTER}}" },
-    { "action": "set_field", "selector": { "aria-label": "Person Involved(Nos) Required" }, "value": "{{NO_OF_PERSON}}" },
-    { "action": "set_field", "selector": { "text": "WCM Operation" }, "value": "WCM" },
-    { "action": "set_field", "selector": { "text": "Permit Required" }, "value": "Permit require" },
-    { "action": "open_permit_create", "selector": { "role": "button", "text": "Create" } },
-    { "action": "set_field", "selector": { "aria-label": "Work Center Required" }, "value": "{{WORK_CENTER}}" },
-    { "action": "set_field", "selector": { "aria-label": "Usage" }, "value": "{{PERMIT_TYPE}}" },
-    { "action": "save", "selector": { "role": "button", "text": "Save" } },
-    { "action": "capture_requisition_no", "source": "status_bar" },
-    { "action": "release", "selector": { "aria-label": "Release" } },
-    { "action": "save", "selector": { "role": "button", "text": "Save" } }
+    {
+      "type": "click",
+      "target": "main",
+      "selectors": [
+        [
+          "#sf > span"
+        ],
+        [
+          "aria/Open Search"
+        ]
+      ]
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "value": "iw21",
+      "selectors": [
+        [
+          "#searchFieldInShell-input-inner"
+        ],
+        [
+          "aria/Search In: \"Apps\"[role=\"searchbox\"]"
+        ]
+      ]
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "target": "main",
+      "key": "Enter"
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "selectors": [
+        [
+          "div.sapMGTHdrContent"
+        ]
+      ]
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "z2",
+      "selectors": [
+        [
+          "#M0\\:46\\:\\\\::2\\:22"
+        ],
+        [
+          "aria/Notification Type Required[role=\"textbox\"]"
+        ]
+      ]
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{TITLE}}",
+      "selectors": [
+        [
+          "#M0\\:46\\:1\\:1\\:\\:0\\:3"
+        ],
+        [
+          "aria/Short Text"
+        ]
+      ]
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{FUNCTIONAL_LOCATION}}",
+      "selectors": [
+        [
+          "#M0\\:46\\:2\\:3B256\\:1\\:1\\:1\\:\\:0\\:16"
+        ],
+        [
+          "aria/Functional loc."
+        ]
+      ]
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{EQUIPMENT}}",
+      "selectors": [
+        [
+          "#M0\\:46\\:2\\:3B256\\:1\\:1\\:1\\:\\:1\\:16"
+        ],
+        [
+          "aria/Equipment"
+        ]
+      ]
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "inp",
+      "selectors": [
+        [
+          "#M0\\:46\\:2\\:3B256\\:1\\:3\\:\\:1\\:17"
+        ],
+        [
+          "aria/Planner Group"
+        ]
+      ]
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{WORK_CENTER}}",
+      "selectors": [
+        [
+          "#M0\\:46\\:2\\:3B256\\:1\\:3\\:\\:2\\:17"
+        ],
+        [
+          "aria/Main WorkCtr"
+        ]
+      ]
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{NO_OF_PERSON}}",
+      "selectors": [
+        [
+          "#M1\\:46\\:1\\:\\:0\\:21"
+        ],
+        [
+          "aria/Person Involved(Nos) Required[role=\"textbox\"]"
+        ]
+      ]
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "Permit require",
+      "selectors": [
+        [
+          "#M0\\:46\\:1\\:1\\:2\\:3B257\\:1[2,8]_c"
+        ]
+      ]
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "selectors": [
+        [
+          "#M0\\:46\\:1\\:\\:2\\:30"
+        ],
+        [
+          "aria/Create"
+        ]
+      ]
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "selectors": [
+        [
+          "#M1\\:50\\:\\:btn[0]"
+        ],
+        [
+          "aria/Continue"
+        ]
+      ]
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{WORK_CENTER}}",
+      "selectors": [
+        [
+          "#M0\\:46\\:1\\:4\\:1\\:1\\:1\\:2B256\\:1\\:1\\:\\:1\\:16"
+        ],
+        [
+          "aria/Work Center Required[role=\"textbox\"]"
+        ]
+      ]
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "keyUp",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "key": "Enter"
+    },
+    {
+      "type": "change",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "value": "{{PERMIT_TYPE}}",
+      "selectors": [
+        [
+          "#M0\\:46\\:1\\:1\\:1\\:\\:0\\:78"
+        ],
+        [
+          "aria/Usage"
+        ]
+      ]
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "selectors": [
+        [
+          "#M0\\:50\\:\\:btn[11]"
+        ],
+        [
+          "aria/Save  Emphasized"
+        ]
+      ]
+    },
+    {
+      "type": "capture_requisition_no",
+      "label": "Capture requisition number generated after Save"
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "selectors": [
+        [
+          "#M0\\:48\\:\\:btn[25]"
+        ],
+        [
+          "aria/Release"
+        ]
+      ]
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "frame": [
+        0
+      ],
+      "selectors": [
+        [
+          "#M0\\:50\\:\\:btn[11]"
+        ],
+        [
+          "aria/Save  Emphasized"
+        ]
+      ]
+    }
   ]
 }
