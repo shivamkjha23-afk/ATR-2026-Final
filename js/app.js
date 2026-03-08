@@ -1383,8 +1383,7 @@ function setupPermitPlanningPage() {
   const SAP_WEBSITE_URL = 'https://sugam.gail.co.in/';
   const PERMIT_AUTOMATION_CONFIG = 'Apply permit-z2.json';
   const fallbackPermitSteps = [
-    { action: 'login', label: 'Login' },
-    { action: 'search_app', label: 'Open IW21' },
+    { action: 'search_app', label: 'Open IW21 from Search' },
     { action: 'set_field', label: 'Notification Type = Z2' },
     { action: 'set_field', label: 'Short Text = TITLE' },
     { action: 'set_field', label: 'Functional Location' },
@@ -1392,14 +1391,13 @@ function setupPermitPlanningPage() {
     { action: 'set_field', label: 'Planner Group = INP' },
     { action: 'set_field', label: 'Main Work Center' },
     { action: 'set_field', label: 'Person Involved' },
-    { action: 'set_field', label: 'WCM Operation' },
     { action: 'set_field', label: 'Permit Required' },
     { action: 'set_field', label: 'Permit Type' },
     { action: 'open_permit_create', label: 'Create Permit' },
     { action: 'save', label: 'Save' },
-    { action: 'capture_requisition_no', label: 'Capture Requisition Number' },
+    { action: 'capture_requisition_no', label: 'Record Requisition Number' },
     { action: 'release', label: 'Release' },
-    { action: 'save', label: 'Save' }
+    { action: 'save', label: 'Final Save' }
   ];
   let permitSteps = [...fallbackPermitSteps];
 
@@ -1415,8 +1413,6 @@ function setupPermitPlanningPage() {
   const sendMailBtn = document.getElementById('sendPermitEmailBtn');
   const requestBody = document.getElementById('permitRequestTableBody');
   const commonWorkCenterInput = document.getElementById('permitCommonWorkCenter');
-  const sapUsernameInput = document.getElementById('permitSapUsername');
-  const sapPasswordInput = document.getElementById('permitSapPassword');
 
   const username = String(getLoggedInUser() || '').trim().toLowerCase();
 
@@ -1428,24 +1424,7 @@ function setupPermitPlanningPage() {
   const sessionData = getPermitSessionData(username);
   cpfInput.value = sessionData.CPF_NO || '';
   commonWorkCenterInput.value = sessionData.WORK_CENTER || '';
-  sapUsernameInput.value = sessionData.SAP_USERNAME || username || '';
-  sapPasswordInput.value = sessionData.SAP_PASSWORD || '';
   sessionHint.textContent = 'Common inputs are stored per user and reused automatically.';
-
-  const bookmarkletLink = document.getElementById('sugamBookmarkletLink');
-  const copyBookmarkletBtn = document.getElementById('copySugamBookmarkletBtn');
-  const bookmarkletCode = buildSugamBookmarkletCode();
-  if (bookmarkletLink) bookmarkletLink.href = bookmarkletCode;
-  if (copyBookmarkletBtn) {
-    copyBookmarkletBtn.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(bookmarkletCode);
-        message.textContent = 'Bookmarklet code copied. Add a new browser bookmark and paste as URL.';
-      } catch (_) {
-        message.textContent = 'Copy failed. Drag the bookmarklet button to your bookmarks bar instead.';
-      }
-    };
-  }
 
   function toStepLabel(step) {
     if (step.label) return step.label;
@@ -1528,7 +1507,7 @@ function setupPermitPlanningPage() {
   function renderRequestTable() {
     const rows = getPendingPlanningRows();
     if (!rows.length) {
-      requestBody.innerHTML = '<tr><td colspan="8">No pending planning items. Add from Update Inspection first.</td></tr>';
+      requestBody.innerHTML = '<tr><td colspan="9">No pending planning items. Add from Update Inspection first.</td></tr>'; 
       return;
     }
 
@@ -1543,6 +1522,7 @@ function setupPermitPlanningPage() {
           <td><input class="permit-title-input" data-id="${r.id}" maxlength="40" value="${defaultTitle}" /></td>
           <td><select class="permit-type-input" data-id="${r.id}" required>${permitTypeOptionsHtml}</select></td>
           <td><input class="permit-person-input" data-id="${r.id}" type="number" min="1" value="6" required /></td>
+          <td><input class="permit-reqno-input" data-id="${r.id}" placeholder="Record after save" /></td>
           <td>CPF from session</td>
         </tr>
       `;
@@ -1564,50 +1544,30 @@ function setupPermitPlanningPage() {
   }
 
 
-  function encodePrefillPayload(payload = {}) {
-    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  }
-
-  function buildSugamPrefillUrl(runtime = {}) {
-    const payload = encodePrefillPayload({
-      runtime,
-      steps: permitSteps,
-      generated_at: new Date().toISOString()
-    });
-    return `${SAP_WEBSITE_URL}?atr_prefill=${encodeURIComponent(payload)}`;
-  }
-
-  function buildSugamBookmarkletCode() {
-    return `javascript:(function(){const wait=(ms)=>new Promise((r)=>setTimeout(r,ms));const q=(s)=>Array.from(document.querySelectorAll(s));const eq=(a,b)=>String(a||'').trim().toLowerCase()===String(b||'').trim().toLowerCase();const parse=()=>{const u=new URL(location.href);const p=u.searchParams.get('atr_prefill')||u.hash.replace(/^#atr_prefill=/,'');if(!p){alert('No atr_prefill payload found in URL. Open SUGAM from ATR Permit Planning first.');return null;}try{return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(p)))));}catch(e){alert('Unable to decode prefill payload.');return null;}};const resolve=(raw,r)=>typeof raw==='string'?raw.replace(/{{\s*([A-Z0-9_]+)\s*}}/g,(_,t)=>String(r[t]??'')):raw;const find=(selector={})=>{if(selector['aria-label']){const exact=document.querySelector('[aria-label="'+selector['aria-label'].replace(/"/g,'\\"')+'"]');if(exact)return exact;const near=q('[aria-label]').find((el)=>eq(el.getAttribute('aria-label'),selector['aria-label'])||String(el.getAttribute('aria-label')||'').toLowerCase().includes(String(selector['aria-label']).toLowerCase()));if(near)return near;}if(selector.id){const byId=document.getElementById(selector.id);if(byId)return byId;}if(selector.role&&selector.text){const roleHits=q('[role="'+selector.role+'"]');const found=roleHits.find((el)=>String(el.textContent||'').toLowerCase().includes(String(selector.text).toLowerCase()));if(found)return found;}if(selector.text){const pool=q('button,[role="button"],input,textarea,select,[aria-label],label,span,div');const found=pool.find((el)=>String(el.textContent||el.value||el.getAttribute('aria-label')||'').toLowerCase().includes(String(selector.text).toLowerCase()));if(found)return found;}return null;};const set=(el,val)=>{if(!el)return;el.focus();if('value'in el){el.value=String(val??'');el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}else{el.click();}};const press=(k='Enter')=>{const tgt=document.activeElement||document.body;tgt.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true}));tgt.dispatchEvent(new KeyboardEvent('keyup',{key:k,bubbles:true}));};(async()=>{const payload=parse();if(!payload)return;const steps=Array.isArray(payload.steps)?payload.steps:[];const runtime=payload.runtime||{};for(let i=0;i<steps.length;i+=1){const step=steps[i]||{};const target=find(step.selector||{});const value=resolve(step.value,runtime);if(step.action==='capture_requisition_no')continue;if(step.action==='press'){press(step.key||'Enter');await wait(350);continue;}if(target){target.click();if(value!==undefined&&value!==null&&value!=='')set(target,value);}if(['search_app','set_field','login','type'].includes(step.action))press('Enter');await wait(350);}alert('SUGAM prefill steps executed. Verify fields before Save/Release.');})();})();`;
-  }
-
-
-  async function runPermitFlowForRow(row, commonInput) {
-    const runtime = { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' };
-    const launchUrl = buildSugamPrefillUrl(runtime);
-    const sapWindow = window.open(launchUrl, '_blank');
+  function openSugamWindow() {
+    const sapWindow = window.open(SAP_WEBSITE_URL, 'sugam');
     if (!sapWindow) {
-      throw new Error('Popup blocked. Allow popups to open SUGAM prefill links.');
+      throw new Error('Popup blocked. Allow popups to open SUGAM window.');
     }
+    try { sapWindow.focus(); } catch (_) {}
+    return sapWindow;
+  }
 
-    try {
-      await navigator.clipboard.writeText(buildSugamBookmarkletCode());
-      message.textContent = 'SUGAM tab opened with payload. Bookmarklet code copied—save it once and click inside logged-in SUGAM tab.';
-    } catch (_) {
-      message.textContent = 'SUGAM tab opened with payload. Copy the bookmarklet from Permit Planning and click it in logged-in SUGAM tab.';
-    }
+  async function runPermitFlowForRow(row, commonInput, enteredReqNo = '') {
+    openSugamWindow();
+    const runtime = { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' };
 
+    message.textContent = 'SUGAM window "sugam" opened/reused. Continue from search box (already logged in).';
     for (let i = 0; i < permitSteps.length; i += 1) {
       const step = permitSteps[i];
       renderProgress(i, 'running');
       const value = resolvePermitValue(step.value, runtime);
-      message.textContent = `Prepared step ${i + 1}/${permitSteps.length}: ${toStepLabel(step)}${value ? ` → ${value}` : ''}`;
+      message.textContent = `Step ${i + 1}/${permitSteps.length}: ${toStepLabel(step)}${value ? ` → ${value}` : ''}`;
       await new Promise((resolve) => setTimeout(resolve, 70));
-      if (step.action === 'capture_requisition_no') row.__REQUISITION_NO = generateRequisitionNo(row);
     }
 
     renderProgress(permitSteps.length, 'done');
-    return row.__REQUISITION_NO || `REQ-${Date.now()}`;
+    return enteredReqNo || generateRequisitionNo(row);
   }
 
 
@@ -1646,28 +1606,15 @@ function setupPermitPlanningPage() {
       return;
     }
 
-    const sapUsername = sapUsernameInput.value.trim() || sessionInputs.SAP_USERNAME || '';
-    if (!sapUsername) {
-      alert('Enter SAP username once. It will be reused for this user.');
-      return;
-    }
-
-    const sapPassword = sapPasswordInput.value || sessionInputs.SAP_PASSWORD || '';
-    if (!sapPassword) {
-      alert('Enter SAP password once. It will be reused for this user.');
-      return;
-    }
-
     setPermitSessionData(username, {
       CPF_NO: cpfNo,
-      WORK_CENTER: commonWorkCenter,
-      SAP_USERNAME: sapUsername,
-      SAP_PASSWORD: sapPassword
+      WORK_CENTER: commonWorkCenter
     });
 
     const titleById = new Map(Array.from(document.querySelectorAll('.permit-title-input')).map((el) => [el.dataset.id, el.value.trim()]));
     const permitTypeById = new Map(Array.from(document.querySelectorAll('.permit-type-input')).map((el) => [el.dataset.id, el.value]));
     const personById = new Map(Array.from(document.querySelectorAll('.permit-person-input')).map((el) => [el.dataset.id, el.value]));
+    const reqNoById = new Map(Array.from(document.querySelectorAll('.permit-reqno-input')).map((el) => [el.dataset.id, el.value.trim()]));
 
     try {
       for (const row of selectedRows) {
@@ -1680,8 +1627,6 @@ function setupPermitPlanningPage() {
         }
 
         const commonInput = {
-          USERNAME: sapUsername,
-          PASSWORD: sapPassword,
           TITLE: title,
           DESCRIPTION: '',
           FUNCTIONAL_LOCATION: (row.functional_location || '').trim(),
@@ -1692,7 +1637,7 @@ function setupPermitPlanningPage() {
           CPF_NO: cpfNo
         };
 
-        const reqNo = await runPermitFlowForRow(row, commonInput);
+        const reqNo = await runPermitFlowForRow(row, commonInput, reqNoById.get(row.id) || '');
         upsertById('permit_applications', {
           equipment_tag: row.equipment_tag,
           TITLE: commonInput.TITLE,
