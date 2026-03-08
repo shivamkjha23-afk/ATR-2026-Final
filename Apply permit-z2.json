@@ -1,6 +1,6 @@
 {
-  "title": "Apply permit-z2-recorded-search-start",
-  "notes": "Recorded flow starts from SUGAM search (already logged in) and captures requisition number after Save.",
+  "title": "Apply permit-z2-search-start",
+  "notes": "Starts after user login. Opens IW21 from search, fills required fields, keeps steps minimal and records requisition number manually in ATR UI.",
   "runtime_placeholders": [
     "TITLE",
     "FUNCTIONAL_LOCATION",
@@ -11,364 +11,118 @@
   ],
   "steps": [
     {
-      "type": "click",
-      "target": "main",
-      "selectors": [
-        [
-          "#sf > span"
-        ],
-        [
-          "aria/Open Search"
-        ]
-      ]
-    },
-    {
-      "type": "change",
-      "target": "main",
-      "value": "iw21",
-      "selectors": [
-        [
-          "#searchFieldInShell-input-inner"
-        ],
-        [
-          "aria/Search In: \"Apps\"[role=\"searchbox\"]"
-        ]
-      ]
-    },
-    {
-      "type": "keyDown",
-      "target": "main",
+      "action": "press",
       "key": "Enter"
     },
     {
-      "type": "keyUp",
-      "target": "main",
-      "key": "Enter"
+      "action": "search_app",
+      "selector": {
+        "role": "searchbox",
+        "text": "Search In: Apps"
+      },
+      "value": "IW21"
     },
     {
-      "type": "click",
-      "target": "main",
-      "selectors": [
-        [
-          "div.sapMGTHdrContent"
-        ]
-      ]
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Notification Type Required"
+      },
+      "value": "Z2"
     },
     {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "z2",
-      "selectors": [
-        [
-          "#M0\\:46\\:\\:\\:2\\:22"
-        ],
-        [
-          "aria/Notification Type Required[role=\"textbox\"]"
-        ]
-      ]
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Short Text"
+      },
+      "value": "{{TITLE}}"
     },
     {
-      "type": "keyDown",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Functional loc."
+      },
+      "value": "{{FUNCTIONAL_LOCATION}}"
     },
     {
-      "type": "keyUp",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Equipment"
+      },
+      "value": "{{EQUIPMENT}}"
     },
     {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{TITLE}}",
-      "selectors": [
-        [
-          "#M0\\:46\\:1\\:1\\:\\:0\\:3"
-        ],
-        [
-          "aria/Short Text"
-        ]
-      ]
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Planner Group"
+      },
+      "value": "INP"
     },
     {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{FUNCTIONAL_LOCATION}}",
-      "selectors": [
-        [
-          "#M0\\:46\\:2\\:3B256\\:1\\:1\\:1\\:\\:0\\:16"
-        ],
-        [
-          "aria/Functional loc."
-        ]
-      ]
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Main WorkCtr"
+      },
+      "value": "{{WORK_CENTER}}"
     },
     {
-      "type": "keyDown",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Person Involved(Nos) Required"
+      },
+      "value": "{{NO_OF_PERSON}}"
     },
     {
-      "type": "keyUp",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "set_field",
+      "selector": {
+        "text": "Permit Required"
+      },
+      "value": "Permit require"
     },
     {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{EQUIPMENT}}",
-      "selectors": [
-        [
-          "#M0\\:46\\:2\\:3B256\\:1\\:1\\:1\\:\\:1\\:16"
-        ],
-        [
-          "aria/Equipment"
-        ]
-      ]
+      "action": "open_permit_create",
+      "selector": {
+        "role": "button",
+        "text": "Create"
+      }
     },
     {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "inp",
-      "selectors": [
-        [
-          "#M0\\:46\\:2\\:3B256\\:1\\:3\\:\\:1\\:17"
-        ],
-        [
-          "aria/Planner Group"
-        ]
-      ]
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Work Center Required"
+      },
+      "value": "{{WORK_CENTER}}"
     },
     {
-      "type": "keyDown",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "set_field",
+      "selector": {
+        "aria-label": "Usage"
+      },
+      "value": "{{PERMIT_TYPE}}"
     },
     {
-      "type": "keyUp",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "save",
+      "selector": {
+        "role": "button",
+        "text": "Save"
+      }
     },
     {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{WORK_CENTER}}",
-      "selectors": [
-        [
-          "#M0\\:46\\:2\\:3B256\\:1\\:3\\:\\:2\\:17"
-        ],
-        [
-          "aria/Main WorkCtr"
-        ]
-      ]
+      "action": "capture_requisition_no",
+      "source": "status_bar",
+      "label": "Record Requisition Number in ATR table"
     },
     {
-      "type": "keyDown",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
+      "action": "release",
+      "selector": {
+        "aria-label": "Release"
+      }
     },
     {
-      "type": "keyUp",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
-    },
-    {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{NO_OF_PERSON}}",
-      "selectors": [
-        [
-          "#M1\\:46\\:1\\:\\:0\\:21"
-        ],
-        [
-          "aria/Person Involved(Nos) Required[role=\"textbox\"]"
-        ]
-      ]
-    },
-    {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "Permit require",
-      "selectors": [
-        [
-          "#M0\\:46\\:1\\:1\\:2\\:3B257\\:1[2,8]_c"
-        ]
-      ]
-    },
-    {
-      "type": "click",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "selectors": [
-        [
-          "#M0\\:46\\:1\\:\\:2\\:30"
-        ],
-        [
-          "aria/Create"
-        ]
-      ]
-    },
-    {
-      "type": "click",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "selectors": [
-        [
-          "#M1\\:50\\:\\:btn[0]"
-        ],
-        [
-          "aria/Continue"
-        ]
-      ]
-    },
-    {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{WORK_CENTER}}",
-      "selectors": [
-        [
-          "#M0\\:46\\:1\\:4\\:1\\:1\\:1\\:2B256\\:1\\:1\\:\\:1\\:16"
-        ],
-        [
-          "aria/Work Center Required[role=\"textbox\"]"
-        ]
-      ]
-    },
-    {
-      "type": "keyDown",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
-    },
-    {
-      "type": "keyUp",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "key": "Enter"
-    },
-    {
-      "type": "change",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "value": "{{PERMIT_TYPE}}",
-      "selectors": [
-        [
-          "#M0\\:46\\:1\\:1\\:1\\:\\:0\\:78"
-        ],
-        [
-          "aria/Usage"
-        ]
-      ]
-    },
-    {
-      "type": "click",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "selectors": [
-        [
-          "#M0\\:50\\:\\:btn[11]"
-        ],
-        [
-          "aria/Save  Emphasized"
-        ]
-      ]
-    },
-    {
-      "type": "capture_requisition_no",
-      "label": "Capture requisition number generated after Save"
-    },
-    {
-      "type": "click",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "selectors": [
-        [
-          "#M0\\:48\\:\\:btn[25]"
-        ],
-        [
-          "aria/Release"
-        ]
-      ]
-    },
-    {
-      "type": "click",
-      "frame": [
-        0
-      ],
-      "target": "main",
-      "selectors": [
-        [
-          "#M0\\:50\\:\\:btn[11]"
-        ],
-        [
-          "aria/Save  Emphasized"
-        ]
-      ]
+      "action": "save",
+      "selector": {
+        "role": "button",
+        "text": "Save"
+      }
     }
   ]
 }

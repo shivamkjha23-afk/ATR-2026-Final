@@ -1553,49 +1553,6 @@ function setupPermitPlanningPage() {
     return 'click';
   }
 
-  function getPrimarySelector(step = {}) {
-    if (step.selector?.id) return `#${step.selector.id}`;
-    if (step.selector?.['aria-label']) return `[aria-label="${step.selector['aria-label'].replace(/"/g, '\\"')}"]`;
-    if (step.selector?.role && step.selector?.text) return `[role="${step.selector.role}"]`;
-    if (Array.isArray(step.selectors)) {
-      for (const candidate of step.selectors) {
-        const first = Array.isArray(candidate) ? candidate[0] : candidate;
-        if (!first || typeof first !== 'string') continue;
-        if (first.startsWith('#') || first.startsWith('.') || first.startsWith('[') || first.startsWith('div') || first.startsWith('input') || first.startsWith('button')) return first;
-        if (first.startsWith('aria/')) {
-          const label = first.replace(/^aria\//, '').replace(/\[role=.*$/, '').trim();
-          return `[aria-label="${label.replace(/"/g, '\\"')}"]`;
-        }
-      }
-    }
-    return '';
-  }
-
-  function encodeAutomationPayload(payload = {}) {
-    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  }
-
-  function buildSugamExecutionUrl(payload = {}) {
-    const encodedPayload = encodeAutomationPayload(payload);
-    const runner = `javascript:(function(){const decode=(raw)=>JSON.parse(decodeURIComponent(escape(atob(raw))));const wait=(ms)=>new Promise((r)=>setTimeout(r,ms));const payload=decode('${encodedPayload}');const runtime=payload.runtime||{};const steps=Array.isArray(payload.steps)?payload.steps:[];const runId=payload.runId||'';const resolve=(v)=>typeof v==='string'?v.replace(/{{\s*([A-Z0-9_]+)\s*}}/g,(_,t)=>String(runtime[t]??'')):v;const normalize=(step)=>{const t=String(step.type||step.action||'').toLowerCase();if(['set_field','type','search_app'].includes(t))return 'change';if(t==='press')return 'keydown';if(t==='doubleclick')return 'doubleclick';return t||'click';};const cssFromAria=(raw)=>{const label=String(raw||'').replace(/^aria\//,'').replace(/\[role=.*$/,'').trim();if(!label)return'';return '[aria-label="'+label.replace(/"/g,'\\"')+'"]';};const selectorList=(step)=>{const out=[];if(step.selector&&step.selector.id)out.push('#'+step.selector.id);if(step.selector&&step.selector['aria-label'])out.push('[aria-label="'+String(step.selector['aria-label']).replace(/"/g,'\\"')+'"]');if(Array.isArray(step.selectors)){for(const c of step.selectors){const first=Array.isArray(c)?c[0]:c;if(!first||typeof first!=='string')continue;if(first.startsWith('xpath/'))continue;if(first.startsWith('pierce/')){out.push(first.replace(/^pierce\//,''));continue;}if(first.startsWith('aria/')){const a=cssFromAria(first);if(a)out.push(a);continue;}if(/^#|^\.|^\[|^div|^input|^button|^span|^table|^td/.test(first))out.push(first);} }return Array.from(new Set(out));};const getDoc=(step)=>{try{if(Array.isArray(step.frame)&&step.frame.length&&window.frames&&window.frames[step.frame[0]]&&window.frames[step.frame[0]].document)return window.frames[step.frame[0]].document;}catch(_){ }return document;};const find=(step)=>{const d=getDoc(step);const list=selectorList(step);for(const sel of list){try{const el=d.querySelector(sel);if(el)return el;}catch(_){} }return null;};const focusAndClick=(el)=>{if(!el)return;try{el.focus();}catch(_){};try{el.click();}catch(_){};};const setValue=(el,val)=>{if(!el)return;focusAndClick(el);if('value' in el){el.value=String(val??'');el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));}else{try{el.textContent=String(val??'');}catch(_){} }};const press=(step,key='Enter')=>{const d=getDoc(step);const tgt=(d&&d.activeElement)||document.activeElement||document.body;try{tgt.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true}));}catch(_){};try{tgt.dispatchEvent(new KeyboardEvent('keyup',{key,bubbles:true}));}catch(_){};};const captureReqNo=()=>{const chunks=[document.body?.innerText||''];for(const sel of ['[role="status"]','.sapMMsgStripText','.urMsgBar','.sapMMessageToast']){try{chunks.push(...Array.from(document.querySelectorAll(sel)).map((el)=>el.textContent||''));}catch(_){} }const text=chunks.join('\n');const m=text.match(/(?:requisition|request)\s*(?:no|number)?\s*[:#-]?\s*([0-9]{6,14})/i)||text.match(/\b([0-9]{6,14})\b/);return m?m[1]:'';};(async()=>{let reqNo='';let failedAt='';try{for(let i=0;i<steps.length;i+=1){const step=steps[i]||{};const t=normalize(step);const el=find(step);const val=resolve(step.value);if(t==='click'){if(el)focusAndClick(el);}else if(t==='doubleclick'){if(el){focusAndClick(el);try{el.dispatchEvent(new MouseEvent('dblclick',{bubbles:true}));}catch(_){}}}else if(t==='change'){if(el)setValue(el,val);}else if(t==='keydown'){press(step,step.key||'Enter');}else if(t==='keyup'){}else if(t==='capture_requisition_no'){reqNo=captureReqNo();}if(step.key==='Enter'&&t!=='keydown')press(step,'Enter');await wait(Number(step.duration||350));if(!reqNo&&(t==='click'||t==='change')&&/save/i.test(String(val||'')+JSON.stringify(step.selectors||[])+JSON.stringify(step.selector||{})))reqNo=captureReqNo();failedAt=String(i+1);}if(!reqNo)reqNo=captureReqNo();if(window.opener){window.opener.postMessage({type:'atr-permit-result',runId,reqNo:reqNo||'',ok:!!reqNo,failedAt},'*');}if(!reqNo)alert('Automation completed but requisition number was not auto-captured. Enter it manually in ATR.');}catch(err){if(window.opener){window.opener.postMessage({type:'atr-permit-result',runId,reqNo:'',ok:false,error:String(err&&err.message||err),failedAt},'*');}alert('Permit automation failed: '+(err&&err.message||err));}})();})();`;
-    return runner;
-  }
-
-
-  const permitRunWaiters = new Map();
-  function handlePermitAutomationMessage(evt) {
-    const data = evt?.data || {};
-    if (data.type !== 'atr-permit-result' || !data.runId) return;
-    const waiter = permitRunWaiters.get(data.runId);
-    if (!waiter) return;
-    clearTimeout(waiter.timer);
-    permitRunWaiters.delete(data.runId);
-    if (data.ok && data.reqNo) waiter.resolve(String(data.reqNo).trim());
-    else waiter.reject(new Error(data.error || 'Could not capture requisition number from SUGAM.'));
-  }
-  window.removeEventListener('message', handlePermitAutomationMessage);
-  window.addEventListener('message', handlePermitAutomationMessage);
-
   function openSugamWindow() {
     const sapWindow = window.open(SAP_WEBSITE_URL, 'sugam');
     if (!sapWindow) {
@@ -1606,42 +1563,21 @@ function setupPermitPlanningPage() {
   }
 
   async function runPermitFlowForRow(row, commonInput, enteredReqNo = '') {
-    const runtime = {
-      ...commonInput,
-      EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '',
-      FUNCTIONAL_LOCATION: row.functional_location || commonInput.FUNCTIONAL_LOCATION || ''
-    };
+    openSugamWindow();
+    const runtime = { ...commonInput, EQUIPMENT: row.equipment_tag || commonInput.EQUIPMENT || '' };
 
-    const sapWindow = openSugamWindow();
-    const runId = `permit_${row.id || Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-    if (!enteredReqNo) {
-      const executionUrl = buildSugamExecutionUrl({ runId, runtime, steps: permitSteps });
-      const reqPromise = new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          permitRunWaiters.delete(runId);
-          reject(new Error('Timed out while waiting for requisition number from SUGAM. Save the permit, then retry or enter requisition number manually.'));
-        }, 180000);
-        permitRunWaiters.set(runId, { resolve, reject, timer });
-      });
-
-      try {
-        sapWindow.location.href = executionUrl;
-      } catch (_) {
-        permitRunWaiters.delete(runId);
-        throw new Error('Browser blocked script execution in SUGAM window. Enter requisition number manually and re-apply for this row.');
-      }
-
-      message.textContent = 'Executing recorded script in SUGAM window "sugam". Waiting for Save and requisition number capture...';
-      renderProgress(permitSteps.length - 1, 'running');
-      const capturedReqNo = await reqPromise;
-      renderProgress(permitSteps.length, 'done');
-      return capturedReqNo;
+    message.textContent = 'SUGAM window "sugam" opened/reused. Continue from search box (already logged in).';
+    for (let i = 0; i < permitSteps.length; i += 1) {
+      const step = permitSteps[i];
+      renderProgress(i, 'running');
+      const value = resolvePermitValue(step.value, runtime);
+      message.textContent = `Step ${i + 1}/${permitSteps.length}: ${toStepLabel(step)}${value ? ` → ${value}` : ''}`;
+      await new Promise((resolve) => setTimeout(resolve, 70));
     }
 
     message.textContent = `Using manually entered requisition no: ${enteredReqNo}`;
     renderProgress(permitSteps.length, 'done');
-    return enteredReqNo;
+    return enteredReqNo || generateRequisitionNo(row);
   }
 
 
