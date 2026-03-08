@@ -1428,7 +1428,7 @@ function setupPermitPlanningPage() {
 
   function toStepLabel(step) {
     if (step.label) return step.label;
-    const action = String(step.action || '').replace(/_/g, ' ').trim();
+    const action = String(step.action || step.type || '').replace(/_/g, ' ').trim();
     return action ? action.replace(/\b\w/g, (c) => c.toUpperCase()) : 'Step';
   }
 
@@ -1543,6 +1543,15 @@ function setupPermitPlanningPage() {
     return rawValue.replace(/{{\s*([A-Z0-9_]+)\s*}}/g, (_, token) => String(runtime[token] ?? ''));
   }
 
+  function normalizeStepType(step = {}) {
+    if (step.type) return String(step.type).toLowerCase();
+    const action = String(step.action || '').toLowerCase();
+    if (!action) return 'click';
+    if (action === 'press') return 'keyDown';
+    if (['set_field', 'type', 'search_app'].includes(action)) return 'change';
+    if (action === 'capture_requisition_no') return 'capture';
+    return 'click';
+  }
 
   function openSugamWindow() {
     const sapWindow = window.open(SAP_WEBSITE_URL, 'sugam');
@@ -1566,6 +1575,7 @@ function setupPermitPlanningPage() {
       await new Promise((resolve) => setTimeout(resolve, 70));
     }
 
+    message.textContent = `Using manually entered requisition no: ${enteredReqNo}`;
     renderProgress(permitSteps.length, 'done');
     return enteredReqNo || generateRequisitionNo(row);
   }
