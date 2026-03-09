@@ -535,7 +535,7 @@ function getDashboardHtml2Canvas() {
   return window.html2canvas || null;
 }
 
-function addPdfPageHeader(doc, title, pageWidth) {
+function addPdfPageHeader(doc, title, pageWidth, generatedAt = '') {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text(title, 12, 14);
@@ -557,10 +557,6 @@ function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel) {
   doc.text(footerText, pageWidth - textWidth - 10, pageHeight - 8);
 }
 
-
-function getDashboardHtml2Canvas() {
-  return window.html2canvas || null;
-}
 
 async function waitForDashboardVisualStability() {
   await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
@@ -592,7 +588,7 @@ function collectDashboardExportTargets(root) {
 }
 
 async function addElementAsLandscapePage(doc, html2canvas, options) {
-  const { element, title, reportTitle, dateLabel } = options;
+  const { element, title, reportTitle, dateLabel, generatedAt = "" } = options;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
@@ -621,7 +617,7 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
   const y = contentY + ((contentHeight - drawHeight) / 2);
 
   doc.addPage('a4', 'landscape');
-  addPdfPageHeader(doc, reportTitle, pageWidth);
+  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
   addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
@@ -721,8 +717,13 @@ function setupDashboardDateTime() {
 
 async function exportDashboardPdf() {
   const jsPDF = getDashboardJsPdf();
+  const html2canvasLib = getDashboardHtml2Canvas();
   if (!jsPDF) {
     alert('PDF library not loaded. Please refresh and try again.');
+    return;
+  }
+  if (!html2canvasLib) {
+    alert('Export capture library not loaded. Please refresh and try again.');
     return;
   }
 
@@ -754,8 +755,9 @@ async function exportDashboardPdf() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const dateLabel = now.toLocaleDateString();
+    const generatedAt = `Generated: ${now.toLocaleString()}`;
 
-    addPdfPageHeader(doc, reportTitle, pageWidth);
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
     addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
@@ -765,11 +767,12 @@ async function exportDashboardPdf() {
     doc.text(`Generated on: ${now.toLocaleString()}`, 12, 36);
 
     for (const target of targets) {
-      await addElementAsLandscapePage(doc, html2canvas, {
+      await addElementAsLandscapePage(doc, html2canvasLib, {
         element: target.element,
         title: target.title,
         reportTitle,
-        dateLabel
+        dateLabel,
+        generatedAt
       });
     }
 
