@@ -217,7 +217,7 @@ function buildVesselInspectionPdf(vesselRows) {
 function moveTopControlsToSidebar() {
   if (document.body.dataset.page === 'login') return;
   const headerRight = document.querySelector('.header-right');
-  if (headerRight) headerRight.classList.add('hidden');
+  if (document.body.dataset.page !== 'dashboard' && headerRight) headerRight.classList.add('hidden');
   document.body.classList.add('top-controls-moved');
 }
 
