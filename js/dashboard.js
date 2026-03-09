@@ -531,6 +531,10 @@ function getDashboardJsPdf() {
   return window.jspdf?.jsPDF || null;
 }
 
+function getDashboardHtml2Canvas() {
+  return window.html2canvas || null;
+}
+
 function addPdfPageHeader(doc, title, pageWidth) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
