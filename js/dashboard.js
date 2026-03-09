@@ -531,10 +531,17 @@ function getDashboardJsPdf() {
   return window.jspdf?.jsPDF || null;
 }
 
-function addPdfPageHeader(doc, title, pageWidth) {
+
+function addPdfPageHeader(doc, title, pageWidth, generatedAt = '') {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.text(title, 12, 14);
+  if (generatedAt) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const timeTextWidth = doc.getTextWidth(generatedAt);
+    doc.text(generatedAt, pageWidth - timeTextWidth - 12, 14);
+  }
   doc.setDrawColor(148, 163, 184);
   doc.line(10, 18, pageWidth - 10, 18);
 }
@@ -546,6 +553,126 @@ function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel) {
   const textWidth = doc.getTextWidth(footerText);
   doc.text(footerText, pageWidth - textWidth - 10, pageHeight - 8);
 }
+
+
+function getDashboardHtml2Canvas() {
+  return window.html2canvas || null;
+}
+
+async function waitForDashboardVisualStability() {
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  await new Promise((resolve) => window.setTimeout(resolve, 200));
+}
+
+function styleClonedSectionForPdf(clonedDoc, exportId) {
+  const section = clonedDoc.querySelector(`[data-export-id="${exportId}"]`);
+  if (!section) return;
+
+  section.style.background = '#ffffff';
+  section.style.color = '#111827';
+  section.style.border = '1px solid #cbd5e1';
+  section.style.borderRadius = '12px';
+  section.style.padding = '14px';
+  section.style.boxSizing = 'border-box';
+
+  section.querySelectorAll('.dashboard-filter-tabs').forEach((el) => el.remove());
+
+  section.querySelectorAll('.card, .chart-card, .table-wrap, .vessel-progress-wrap').forEach((node) => {
+    node.style.background = '#ffffff';
+    node.style.color = '#0f172a';
+    node.style.borderColor = '#cbd5e1';
+  });
+
+  section.querySelectorAll('table, th, td, tfoot td').forEach((node) => {
+    node.style.background = '#ffffff';
+    node.style.color = '#0f172a';
+    node.style.borderColor = '#cbd5e1';
+  });
+
+  section.querySelectorAll('th').forEach((th) => {
+    th.style.fontWeight = '700';
+    th.style.background = '#f8fafc';
+  });
+
+  section.querySelectorAll('.vessel-progress-table tbody tr td').forEach((td) => {
+    td.style.background = '#ffffff';
+  });
+}
+
+function collectDashboardExportTargets(root) {
+  const sections = Array.from(root.querySelectorAll('.table-card'));
+  return sections.map((section, idx) => {
+    const title = section.querySelector('h2')?.textContent?.trim() || 'Dashboard Section';
+    const exportId = `dashboard-export-${idx}`;
+    section.dataset.exportId = exportId;
+    return { title, element: section, exportId };
+  });
+}
+
+function drawPdfPanel(doc, x, y, w, h) {
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(255, 255, 255);
+  if (typeof doc.roundedRect === 'function') {
+    doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+    return;
+  }
+  doc.rect(x, y, w, h, 'FD');
+}
+
+async function addElementAsLandscapePage(doc, html2canvas, options) {
+  const {
+    element,
+    title,
+    reportTitle,
+    dateLabel,
+    generatedAtLabel,
+    exportId
+  } = options;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bounds = element?.getBoundingClientRect ? element.getBoundingClientRect() : { width: 0, height: 0 };
+  if (!bounds.width || !bounds.height) {
+    throw new Error(`Section has no visible size: ${title}`);
+  }
+  const margin = 10;
+  const contentY = 26;
+  const contentHeight = pageHeight - contentY - 10;
+  const contentWidth = pageWidth - (margin * 2);
+
+  const canvas = await html2canvas(element, {
+    backgroundColor: '#ffffff',
+    scale: Math.min(2, Math.max(1, window.devicePixelRatio || 1.5)),
+    useCORS: true,
+    logging: false,
+    onclone: (clonedDoc) => {
+      if (exportId) styleClonedSectionForPdf(clonedDoc, exportId);
+    }
+  });
+
+  const imageData = canvas.toDataURL('image/png', 0.95);
+  const imageRatio = canvas.width / canvas.height;
+  let drawWidth = contentWidth;
+  let drawHeight = drawWidth / imageRatio;
+
+  if (drawHeight > contentHeight) {
+    drawHeight = contentHeight;
+    drawWidth = drawHeight * imageRatio;
+  }
+
+  const x = (pageWidth - drawWidth) / 2;
+  const y = contentY + ((contentHeight - drawHeight) / 2);
+
+  doc.addPage('a4', 'landscape');
+  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAtLabel);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(title, margin, 23);
+  drawPdfPanel(doc, margin, contentY, contentWidth, contentHeight);
+  doc.addImage(imageData, 'PNG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+}
+
 
 function writeKeyValueList(doc, items, y) {
   doc.setFontSize(10);
@@ -625,39 +752,19 @@ function paginateTable(doc, opts) {
   return y + 4;
 }
 
-function setupDashboardDateTime() {
-  const el = document.getElementById('dashboardDateTime');
-  if (!el) return;
 
-  const render = () => {
-    el.textContent = new Date().toLocaleString();
-  };
-
-  render();
-  window.setInterval(render, 1000);
-}
-
-async function exportDashboardPdf() {
-  const jsPDF = getDashboardJsPdf();
-  const html2canvas = getDashboardHtml2Canvas();
-  if (!jsPDF) {
-    alert('PDF library not loaded. Please refresh and try again.');
-    return;
-  }
-  if (!html2canvas) {
-    alert('Image capture library not loaded. Please refresh and try again.');
-    return;
-  }
-
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
-  const now = new Date();
+function exportDashboardDataFallback(jsPDF, opts = {}) {
+  const now = opts.now || new Date();
   const today = todayISO();
   const reportTitle = 'Inspection Department Daily Progress Report | ATR 2026';
+  const dateLabel = now.toLocaleDateString();
+  const generatedAtLabel = `Generated: ${now.toLocaleString()}`;
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const dateLabel = now.toLocaleDateString();
 
-  addPdfPageHeader(doc, reportTitle, pageWidth);
+  addPdfPageHeader(doc, `${reportTitle} (Fallback Export)`, pageWidth, generatedAtLabel);
   addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
 
   const allInspections = getCollection('inspections');
@@ -699,7 +806,7 @@ async function exportDashboardPdf() {
 
   if (y > pageHeight - 40) {
     doc.addPage('a4', 'landscape');
-    addPdfPageHeader(doc, reportTitle, pageWidth);
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAtLabel);
     addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
     y = 24;
   }
@@ -718,7 +825,7 @@ async function exportDashboardPdf() {
 
   if (y > pageHeight - 40) {
     doc.addPage('a4', 'landscape');
-    addPdfPageHeader(doc, reportTitle, pageWidth);
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAtLabel);
     addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
     y = 24;
   }
@@ -736,7 +843,7 @@ async function exportDashboardPdf() {
   });
 
   doc.addPage('a4', 'landscape');
-  addPdfPageHeader(doc, reportTitle, pageWidth);
+  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAtLabel);
   addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
 
   y = paginateTable(doc, {
@@ -753,7 +860,7 @@ async function exportDashboardPdf() {
 
   if (y > pageHeight - 40) {
     doc.addPage('a4', 'landscape');
-    addPdfPageHeader(doc, reportTitle, pageWidth);
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAtLabel);
     addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
     y = 24;
   }
@@ -770,7 +877,124 @@ async function exportDashboardPdf() {
     dateLabel
   });
 
-  doc.save(`ATR2026_Daily_Progress_Report_${today}.pdf`);
+  doc.save(`ATR2026_Dashboard_Visual_Report_${today}.pdf`);
+}
+
+function setupDashboardDateTime() {
+  const el = document.getElementById('dashboardDateTime');
+  if (!el) return;
+
+  const render = () => {
+    el.textContent = new Date().toLocaleString();
+  };
+
+  render();
+  window.setInterval(render, 1000);
+}
+
+async function exportDashboardPdf() {
+  const jsPDF = getDashboardJsPdf();
+  const html2canvas = getDashboardHtml2Canvas();
+
+  if (!jsPDF) {
+    alert('PDF library not loaded. Please refresh and try again.');
+    return;
+  }
+
+  if (!html2canvas) {
+    try {
+      exportDashboardDataFallback(jsPDF);
+      return;
+    } catch (fallbackErr) {
+      alert(`Dashboard capture unavailable and fallback export failed: ${fallbackErr.message || 'unknown error'}`);
+      return;
+    }
+  }
+
+  const root = document.getElementById('dashboardRoot');
+  if (!root) {
+    alert('Dashboard is not ready for export.');
+    return;
+  }
+
+  const exportBtn = document.getElementById('exportDashboardPdfBtn');
+  if (exportBtn) {
+    exportBtn.disabled = true;
+    exportBtn.textContent = 'Preparing PDF...';
+  }
+
+  try {
+    await waitForDashboardVisualStability();
+
+    const targets = collectDashboardExportTargets(root);
+    if (!targets.length) {
+      alert('No dashboard content available to export.');
+      return;
+    }
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+    const now = new Date();
+    const today = todayISO();
+    const reportTitle = 'Inspection Department Daily Progress Report | ATR 2026';
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const dateLabel = now.toLocaleDateString();
+    const generatedAtLabel = `Generated: ${now.toLocaleString()}`;
+
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAtLabel);
+    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Dashboard Visual Export', 12, 28);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(generatedAtLabel, 12, 36);
+
+    let successPages = 0;
+    const failedTargets = [];
+
+    for (const target of targets) {
+      try {
+        await addElementAsLandscapePage(doc, html2canvas, {
+          element: target.element,
+          title: target.title,
+          reportTitle,
+          dateLabel,
+          generatedAtLabel,
+          exportId: target.exportId
+        });
+        successPages += 1;
+      } catch (sectionErr) {
+        console.error(`Skipping export section: ${target.title}`, sectionErr);
+        failedTargets.push(target.title);
+      }
+    }
+
+    if (!successPages) {
+      exportDashboardDataFallback(jsPDF, { now });
+      return;
+    }
+
+    doc.save(`ATR2026_Dashboard_Visual_Report_${today}.pdf`);
+
+    if (failedTargets.length) {
+      alert(`Export completed with partial content. Failed sections: ${failedTargets.join(', ')}`);
+    }
+  } catch (err) {
+    console.error('Dashboard export failed:', err);
+    try {
+      exportDashboardDataFallback(jsPDF);
+      alert('Visual export failed, downloaded fallback PDF export instead.');
+    } catch (fallbackErr) {
+      const message = err?.message ? `Unable to export dashboard visuals: ${err.message}` : 'Unable to export dashboard visuals. Please retry.';
+      alert(`${message} Fallback failed: ${fallbackErr?.message || 'unknown error'}`);
+    }
+  } finally {
+    if (exportBtn) {
+      exportBtn.disabled = false;
+      exportBtn.textContent = 'Export Dashboard + Observations PDF';
+    }
+  }
 }
 
 function setupDashboardExportButton() {
