@@ -531,15 +531,114 @@ function getDashboardJsPdf() {
   return window.jspdf?.jsPDF || null;
 }
 
-function addPdfTitle(doc, title, subtitle = '') {
+function getDashboardHtml2Canvas() {
+  return window.html2canvas || null;
+}
+
+function addPdfPageHeader(doc, title, pageWidth) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text(title, 12, 16);
+  doc.text(title, 12, 14);
+  doc.setDrawColor(148, 163, 184);
+  doc.line(10, 18, pageWidth - 10, 18);
+}
+
+function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  if (subtitle) doc.text(subtitle, 12, 22);
-  doc.setDrawColor(148, 163, 184);
-  doc.line(10, 26, 200, 26);
+  const footerText = `Date: ${dateLabel}`;
+  const textWidth = doc.getTextWidth(footerText);
+  doc.text(footerText, pageWidth - textWidth - 10, pageHeight - 8);
+}
+
+function addDashboardPdfPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, firstPage = false) {
+  if (!firstPage) doc.addPage('a4', 'landscape');
+  addPdfPageHeader(doc, reportTitle, pageWidth);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+}
+
+function addImageChunk(doc, imgData, opts) {
+  const {
+    imgPxWidth,
+    chunkPxTop,
+    chunkPxHeight,
+    x,
+    y,
+    drawWidthMm,
+    drawHeightMm
+  } = opts;
+
+  doc.addImage(
+    imgData,
+    'PNG',
+    x,
+    y,
+    drawWidthMm,
+    drawHeightMm,
+    undefined,
+    'FAST',
+    0,
+    0,
+    chunkPxTop,
+    imgPxWidth,
+    chunkPxHeight
+  );
+}
+
+function addPaginatedElementImage(doc, imgData, imgPxWidth, imgPxHeight, opts) {
+  const {
+    x,
+    y,
+    maxWidth,
+    maxHeight,
+    pageWidth,
+    pageHeight,
+    reportTitle,
+    dateLabel
+  } = opts;
+
+  const scale = maxWidth / imgPxWidth;
+  const scaledTotalHeightMm = imgPxHeight * scale;
+
+  if (scaledTotalHeightMm <= maxHeight) {
+    addImageChunk(doc, imgData, {
+      imgPxWidth,
+      chunkPxTop: 0,
+      chunkPxHeight: imgPxHeight,
+      x,
+      y,
+      drawWidthMm: maxWidth,
+      drawHeightMm: scaledTotalHeightMm
+    });
+    return;
+  }
+
+  const pxPerMm = imgPxHeight / scaledTotalHeightMm;
+  let consumedPx = 0;
+  let isFirstSlice = true;
+
+  while (consumedPx < imgPxHeight) {
+    if (!isFirstSlice) {
+      addDashboardPdfPage(doc, reportTitle, pageWidth, pageHeight, dateLabel);
+    }
+
+    const availableHeightMm = maxHeight;
+    const chunkPxHeight = Math.min(Math.floor(availableHeightMm * pxPerMm), imgPxHeight - consumedPx);
+    const drawHeightMm = chunkPxHeight / pxPerMm;
+
+    addImageChunk(doc, imgData, {
+      imgPxWidth,
+      chunkPxTop: consumedPx,
+      chunkPxHeight,
+      x,
+      y,
+      drawWidthMm: maxWidth,
+      drawHeightMm
+    });
+
+    consumedPx += chunkPxHeight;
+    isFirstSlice = false;
+  }
 }
 
 function writeKeyValueList(doc, items, y) {
@@ -573,6 +672,53 @@ function renderInspectionSummaryRows(rows = []) {
   });
 }
 
+function paginateTable(doc, opts) {
+  const {
+    title,
+    headers,
+    rows,
+    widths,
+    startY,
+    pageWidth,
+    pageHeight,
+    reportTitle,
+    dateLabel
+  } = opts;
+
+  let y = startY;
+
+  const addPage = () => {
+    doc.addPage('a4', 'landscape');
+    addPdfPageHeader(doc, reportTitle, pageWidth);
+    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+    y = 24;
+  };
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(title, 12, y);
+  y += 8;
+
+  addTableRow(doc, headers, widths, y, true);
+  y += 8;
+
+  rows.forEach((row) => {
+    if (y > pageHeight - 18) {
+      addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(title, 12, y);
+      y += 8;
+      addTableRow(doc, headers, widths, y, true);
+      y += 8;
+    }
+    addTableRow(doc, row, widths, y);
+    y += 8;
+  });
+
+  return y + 4;
+}
+
 function setupDashboardDateTime() {
   const el = document.getElementById('dashboardDateTime');
   if (!el) return;
@@ -585,26 +731,82 @@ function setupDashboardDateTime() {
   window.setInterval(render, 1000);
 }
 
-function exportDashboardPdf() {
+async function exportDashboardPdf() {
   const jsPDF = getDashboardJsPdf();
+  const html2canvas = getDashboardHtml2Canvas();
   if (!jsPDF) {
     alert('PDF library not loaded. Please refresh and try again.');
     return;
   }
+  if (!html2canvas) {
+    alert('Image capture library not loaded. Please refresh and try again.');
+    return;
+  }
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const now = new Date();
-  const today = todayISO();
-  addPdfTitle(doc, 'ATR 2025 | Inspection Department Daily Progress Report', `Generated on ${now.toLocaleString()}`);
+  const exportBtn = document.getElementById('exportDashboardPdfBtn');
+  if (exportBtn) exportBtn.disabled = true;
 
-  let y = 40;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.text('Dashboard export generated successfully.', 12, y);
-  y += 8;
-  doc.text('Note: Firebase loaded data is intentionally excluded in this PDF.', 12, y);
+  try {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+    const now = new Date();
+    const today = todayISO();
+    const reportTitle = 'Inspection Department Daily Progress Report | ATR 2026';
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const dateLabel = now.toLocaleDateString();
+    const contentX = 10;
+    const contentTopY = 24;
+    const contentWidth = pageWidth - 20;
+    const contentHeight = pageHeight - contentTopY - 14;
 
-  doc.save(`ATR2025_Daily_Progress_Report_${today}.pdf`);
+    const sections = Array.from(document.querySelectorAll('#dashboardRoot .table-card'));
+    if (!sections.length) {
+      alert('No dashboard sections found to export.');
+      return;
+    }
+
+    for (let idx = 0; idx < sections.length; idx += 1) {
+      const section = sections[idx];
+      const tableElement = section.querySelector('.table-wrap table');
+      const chartCanvas = section.querySelector('.chart-card canvas');
+
+      addDashboardPdfPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, idx === 0);
+
+      if (tableElement) {
+        const tableCanvas = await html2canvas(tableElement, { backgroundColor: '#ffffff', scale: 2 });
+        const tableImgData = tableCanvas.toDataURL('image/png');
+        addPaginatedElementImage(doc, tableImgData, tableCanvas.width, tableCanvas.height, {
+          x: contentX,
+          y: contentTopY,
+          maxWidth: contentWidth,
+          maxHeight: contentHeight,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+          dateLabel
+        });
+      }
+
+      if (chartCanvas) {
+        addDashboardPdfPage(doc, reportTitle, pageWidth, pageHeight, dateLabel);
+        const chartImgData = chartCanvas.toDataURL('image/png');
+        addPaginatedElementImage(doc, chartImgData, chartCanvas.width, chartCanvas.height, {
+          x: contentX,
+          y: contentTopY,
+          maxWidth: contentWidth,
+          maxHeight: contentHeight,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+          dateLabel
+        });
+      }
+    }
+
+    doc.save(`ATR2026_Daily_Progress_Report_${today}.pdf`);
+  } finally {
+    if (exportBtn) exportBtn.disabled = false;
+  }
 }
 
 function setupDashboardExportButton() {
