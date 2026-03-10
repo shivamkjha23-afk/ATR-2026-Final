@@ -1032,7 +1032,12 @@ ${getLoggedInUser()}`);
       const selectedFiles = imageInput.files || [];
       let imagePaths = editImagePaths;
       if (selectedFiles.length) {
-        imagePaths = await filesToPaths(selectedFiles, observationId, tagNo);
+        suppressSync = true;
+        try {
+          imagePaths = await filesToPaths(selectedFiles, observationId, tagNo);
+        } finally {
+          suppressSync = false;
+        }
       }
       upsertById('observations', {
         id: observationId,
