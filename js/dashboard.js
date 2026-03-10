@@ -535,26 +535,122 @@ function getDashboardHtml2Canvas() {
   return window.html2canvas || null;
 }
 
+function formatExportDateTime(now = new Date()) {
+  return {
+    dateLabel: now.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }),
+    timeLabel: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    generatedAt: now.toLocaleString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  };
+}
+
 function addPdfPageHeader(doc, title, pageWidth, generatedAt = '') {
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(title, 12, 14);
+  doc.setFontSize(16);
+  doc.text(title, pageWidth / 2, 12, { align: 'center' });
+
   if (generatedAt) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    const timeTextWidth = doc.getTextWidth(generatedAt);
-    doc.text(generatedAt, pageWidth - timeTextWidth - 12, 14);
+    doc.text(`Generated: ${generatedAt}`, pageWidth / 2, 18, { align: 'center' });
   }
+
   doc.setDrawColor(148, 163, 184);
-  doc.line(10, 18, pageWidth - 10, 18);
+  doc.setLineWidth(0.35);
+  doc.line(10, 21, pageWidth - 10, 21);
 }
 
-function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel) {
+function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel = '') {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  const footerText = `Date: ${dateLabel}`;
+  const footerText = timeLabel ? `Report Date: ${dateLabel} | Time: ${timeLabel}` : `Report Date: ${dateLabel}`;
   const textWidth = doc.getTextWidth(footerText);
   doc.text(footerText, pageWidth - textWidth - 10, pageHeight - 8);
+}
+
+function collectDashboardSummaryData() {
+  const inspections = getCollection('inspections');
+
+  const getSummaryByType = (equipmentType) => computeSummary(
+    inspections.filter((row) => row.equipment_type === equipmentType),
+    { mode: 'inspection' }
+  );
+
+  return [
+    {
+      title: 'Vessel',
+      summary: getSummaryByType('Vessel'),
+      includeOpportunity: true
+    },
+    {
+      title: 'Pipeline',
+      summary: getSummaryByType('Pipeline'),
+      includeOpportunity: false
+    },
+    {
+      title: 'Steam Trap',
+      summary: getSummaryByType('Steam Trap'),
+      includeOpportunity: false
+    }
+  ];
+}
+
+function addSummaryCardToPdf(doc, card, x, y, width, height) {
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(x, y, width, height, 2.5, 2.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${card.title} Summary`, x + 4, y + 8);
+
+  const metrics = [
+    ['Planned', card.summary.planned || 0],
+    card.includeOpportunity ? ['Opportunity', card.summary.opportunity || 0] : null,
+    ['In Progress', card.summary.inProgress || 0],
+    ['Completed', card.summary.completed || 0]
+  ].filter(Boolean);
+
+  let lineY = y + 15;
+  metrics.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`${label}:`, x + 4, lineY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(value), x + width - 6, lineY, { align: 'right' });
+    lineY += 7;
+  });
+}
+
+function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt) {
+  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(30, 41, 59);
+  doc.text('Dashboard Summary', 12, 29);
+
+  const cards = collectDashboardSummaryData();
+  const marginX = 12;
+  const cardGap = 8;
+  const totalWidth = pageWidth - (marginX * 2);
+  const cardWidth = (totalWidth - (cardGap * (cards.length - 1))) / cards.length;
+  const cardY = 34;
+  const cardHeight = 38;
+
+  cards.forEach((card, idx) => {
+    const cardX = marginX + (idx * (cardWidth + cardGap));
+    addSummaryCardToPdf(doc, card, cardX, cardY, cardWidth, cardHeight);
+  });
 }
 
 
@@ -588,7 +684,7 @@ function collectDashboardExportTargets(root) {
 }
 
 async function addElementAsLandscapePage(doc, html2canvas, options) {
-  const { element, title, reportTitle, dateLabel, generatedAt = "" } = options;
+  const { element, title, reportTitle, dateLabel, timeLabel = '', generatedAt = "" } = options;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
@@ -596,12 +692,25 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
   const contentHeight = pageHeight - contentY - 10;
   const contentWidth = pageWidth - (margin * 2);
 
-  const canvas = await html2canvas(element, {
-    backgroundColor: '#0b1220',
-    scale: 2,
-    useCORS: true,
-    logging: false
-  });
+  const exportToken = `pdf-export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  element.setAttribute('data-pdf-export-token', exportToken);
+
+  let canvas;
+  try {
+    canvas = await html2canvas(element, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      onclone: (clonedDoc) => {
+        const clonedElement = clonedDoc.querySelector(`[data-pdf-export-token="${exportToken}"]`);
+        if (!clonedElement) return;
+        prepareDashboardExportClone(clonedElement, clonedDoc);
+      }
+    });
+  } finally {
+    element.removeAttribute('data-pdf-export-token');
+  }
 
   const imageData = canvas.toDataURL('image/png', 0.95);
   const imageRatio = canvas.width / canvas.height;
@@ -618,11 +727,96 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
 
   doc.addPage('a4', 'landscape');
   addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
-  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text(title, margin, 23);
   doc.addImage(imageData, 'PNG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+}
+
+function styleExportSummaryCards(container) {
+  const cards = Array.from(container.querySelectorAll('.card'));
+  cards.forEach((card) => {
+    card.style.background = '#f8fafc';
+    card.style.border = '1px solid #cbd5e1';
+    card.style.borderRadius = '12px';
+    card.style.boxShadow = 'none';
+    card.style.color = '#0f172a';
+  });
+
+  const labels = Array.from(container.querySelectorAll('.card h3'));
+  labels.forEach((label) => {
+    label.style.color = '#1e293b';
+  });
+
+  const values = Array.from(container.querySelectorAll('.card p'));
+  values.forEach((value) => {
+    value.style.color = '#0f172a';
+    value.style.fontSize = '1.8rem';
+  });
+}
+
+function styleExportTables(container) {
+  const tables = Array.from(container.querySelectorAll('table'));
+  tables.forEach((table) => {
+    table.style.background = '#ffffff';
+    table.style.color = '#0f172a';
+    table.style.borderCollapse = 'collapse';
+  });
+
+  const headers = Array.from(container.querySelectorAll('th'));
+  headers.forEach((cell) => {
+    cell.style.background = '#e2e8f0';
+    cell.style.color = '#0f172a';
+    cell.style.border = '1px solid #cbd5e1';
+  });
+
+  const dataCells = Array.from(container.querySelectorAll('td'));
+  dataCells.forEach((cell) => {
+    cell.style.background = '#ffffff';
+    cell.style.color = '#0f172a';
+    cell.style.border = '1px solid #cbd5e1';
+  });
+
+  const oddRows = Array.from(container.querySelectorAll('tbody tr:nth-child(odd) td'));
+  oddRows.forEach((cell) => {
+    cell.style.background = '#f8fafc';
+  });
+
+  const totalCells = Array.from(container.querySelectorAll('tfoot td'));
+  totalCells.forEach((cell) => {
+    cell.style.background = '#e2e8f0';
+    cell.style.fontWeight = '700';
+  });
+
+  const wrappers = Array.from(container.querySelectorAll('.table-wrap, .vessel-progress-wrap'));
+  wrappers.forEach((wrap) => {
+    wrap.style.background = '#ffffff';
+    wrap.style.border = '1px solid #cbd5e1';
+    wrap.style.borderRadius = '8px';
+    wrap.style.padding = '2px';
+  });
+}
+
+function styleExportChartCard(container) {
+  const charts = Array.from(container.querySelectorAll('.chart-card'));
+  charts.forEach((chartCard) => {
+    chartCard.style.background = '#ffffff';
+    chartCard.style.border = '1px solid #cbd5e1';
+    chartCard.style.borderRadius = '12px';
+  });
+}
+
+function prepareDashboardExportClone(container, clonedDoc) {
+  clonedDoc.documentElement.setAttribute('data-theme', 'light');
+
+  container.style.background = '#ffffff';
+  container.style.color = '#0f172a';
+  container.style.boxShadow = 'none';
+
+  styleExportSummaryCards(container);
+  styleExportTables(container);
+  styleExportChartCard(container);
 }
 
 function writeKeyValueList(doc, items, y) {
@@ -754,17 +948,10 @@ async function exportDashboardPdf() {
     const reportTitle = 'Inspection Department Daily Progress Report | ATR 2026';
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const dateLabel = now.toLocaleDateString();
-    const generatedAt = `Generated: ${now.toLocaleString()}`;
+    const exportDateTime = formatExportDateTime(now);
+    const { dateLabel, timeLabel, generatedAt } = exportDateTime;
 
-    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
-    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Dashboard Visual Export', 12, 28);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${now.toLocaleString()}`, 12, 36);
+    addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
     for (const target of targets) {
       await addElementAsLandscapePage(doc, html2canvasLib, {
@@ -772,6 +959,7 @@ async function exportDashboardPdf() {
         title: target.title,
         reportTitle,
         dateLabel,
+        timeLabel,
         generatedAt
       });
     }
