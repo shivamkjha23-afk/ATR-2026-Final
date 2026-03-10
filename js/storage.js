@@ -309,12 +309,7 @@ function getSessionUser() {
 }
 
 function getCloudConfig() {
-  let cfg = {};
-  try {
-    cfg = JSON.parse(localStorage.getItem(STORAGE_KEYS.cloudConfig) || '{}') || {};
-  } catch (err) {
-    console.warn('Cloud config parse failed, using defaults:', err);
-  }
+  const cfg = JSON.parse(localStorage.getItem(STORAGE_KEYS.cloudConfig) || '{}');
   return {
     enabled: cfg.enabled !== false,
     cloudinaryCloudName: (cfg.cloudinaryCloudName || 'dhlmqtton').trim(),
@@ -323,11 +318,10 @@ function getCloudConfig() {
 }
 
 function setCloudConfig(config) {
-  const input = config && typeof config === 'object' ? config : {};
   const next = {
-    enabled: input.enabled !== false,
-    cloudinaryCloudName: (input.cloudinaryCloudName || 'dhlmqtton').trim(),
-    cloudinaryUploadPreset: (input.cloudinaryUploadPreset || 'ATR-2026-I').trim()
+    enabled: config.enabled !== false,
+    cloudinaryCloudName: (config.cloudinaryCloudName || 'dhlmqtton').trim(),
+    cloudinaryUploadPreset: (config.cloudinaryUploadPreset || 'ATR-2026-I').trim()
   };
   localStorage.setItem(STORAGE_KEYS.cloudConfig, JSON.stringify(next));
 }
@@ -530,7 +524,6 @@ function hasMeaningfulRuntimeData(db) {
     (payload.requisitions || []).length > 0 ||
     (payload.next_day_planning || []).length > 0 ||
     (payload.permit_applications || []).length > 0 ||
-    (payload.users || []).length > 0 ||
     Object.keys(payload.images || {}).length > 0
   );
 }
@@ -673,11 +666,10 @@ function scheduleAutoSync() {
 
 function startRealtimeSync() {
   if (realtimeStarted) return;
+  realtimeStarted = true;
 
   const config = getCloudConfig();
   if (!config.enabled) return;
-
-  realtimeStarted = true;
 
   ensureFirebaseSession()
     .then(() => runtimeDocRef(PRIMARY_RUNTIME_DOC_PATH).onSnapshot(async (snap) => {
