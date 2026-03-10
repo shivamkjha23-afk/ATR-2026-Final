@@ -535,26 +535,122 @@ function getDashboardHtml2Canvas() {
   return window.html2canvas || null;
 }
 
+function formatExportDateTime(now = new Date()) {
+  return {
+    dateLabel: now.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' }),
+    timeLabel: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    generatedAt: now.toLocaleString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  };
+}
+
 function addPdfPageHeader(doc, title, pageWidth, generatedAt = '') {
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(title, 12, 14);
+  doc.setFontSize(16);
+  doc.text(title, pageWidth / 2, 12, { align: 'center' });
+
   if (generatedAt) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    const timeTextWidth = doc.getTextWidth(generatedAt);
-    doc.text(generatedAt, pageWidth - timeTextWidth - 12, 14);
+    doc.text(`Generated: ${generatedAt}`, pageWidth / 2, 18, { align: 'center' });
   }
+
   doc.setDrawColor(148, 163, 184);
-  doc.line(10, 18, pageWidth - 10, 18);
+  doc.setLineWidth(0.35);
+  doc.line(10, 21, pageWidth - 10, 21);
 }
 
-function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel) {
+function addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel = '') {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  const footerText = `Date: ${dateLabel}`;
+  const footerText = timeLabel ? `Report Date: ${dateLabel} | Time: ${timeLabel}` : `Report Date: ${dateLabel}`;
   const textWidth = doc.getTextWidth(footerText);
   doc.text(footerText, pageWidth - textWidth - 10, pageHeight - 8);
+}
+
+function collectDashboardSummaryData() {
+  const inspections = getCollection('inspections');
+
+  const getSummaryByType = (equipmentType) => computeSummary(
+    inspections.filter((row) => row.equipment_type === equipmentType),
+    { mode: 'inspection' }
+  );
+
+  return [
+    {
+      title: 'Vessel',
+      summary: getSummaryByType('Vessel'),
+      includeOpportunity: true
+    },
+    {
+      title: 'Pipeline',
+      summary: getSummaryByType('Pipeline'),
+      includeOpportunity: false
+    },
+    {
+      title: 'Steam Trap',
+      summary: getSummaryByType('Steam Trap'),
+      includeOpportunity: false
+    }
+  ];
+}
+
+function addSummaryCardToPdf(doc, card, x, y, width, height) {
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(x, y, width, height, 2.5, 2.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${card.title} Summary`, x + 4, y + 8);
+
+  const metrics = [
+    ['Planned', card.summary.planned || 0],
+    card.includeOpportunity ? ['Opportunity', card.summary.opportunity || 0] : null,
+    ['In Progress', card.summary.inProgress || 0],
+    ['Completed', card.summary.completed || 0]
+  ].filter(Boolean);
+
+  let lineY = y + 15;
+  metrics.forEach(([label, value]) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`${label}:`, x + 4, lineY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(value), x + width - 6, lineY, { align: 'right' });
+    lineY += 7;
+  });
+}
+
+function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt) {
+  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(30, 41, 59);
+  doc.text('Dashboard Summary', 12, 29);
+
+  const cards = collectDashboardSummaryData();
+  const marginX = 12;
+  const cardGap = 8;
+  const totalWidth = pageWidth - (marginX * 2);
+  const cardWidth = (totalWidth - (cardGap * (cards.length - 1))) / cards.length;
+  const cardY = 34;
+  const cardHeight = 38;
+
+  cards.forEach((card, idx) => {
+    const cardX = marginX + (idx * (cardWidth + cardGap));
+    addSummaryCardToPdf(doc, card, cardX, cardY, cardWidth, cardHeight);
+  });
 }
 
 
@@ -588,7 +684,7 @@ function collectDashboardExportTargets(root) {
 }
 
 async function addElementAsLandscapePage(doc, html2canvas, options) {
-  const { element, title, reportTitle, dateLabel, generatedAt = "" } = options;
+  const { element, title, reportTitle, dateLabel, timeLabel = '', generatedAt = "" } = options;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
@@ -631,7 +727,7 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
 
   doc.addPage('a4', 'landscape');
   addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
-  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text(title, margin, 23);
@@ -852,17 +948,10 @@ async function exportDashboardPdf() {
     const reportTitle = 'Inspection Department Daily Progress Report | ATR 2026';
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const dateLabel = now.toLocaleDateString();
-    const generatedAt = `Generated: ${now.toLocaleString()}`;
+    const exportDateTime = formatExportDateTime(now);
+    const { dateLabel, timeLabel, generatedAt } = exportDateTime;
 
-    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
-    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Dashboard Visual Export', 12, 28);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${now.toLocaleString()}`, 12, 36);
+    addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
     for (const target of targets) {
       await addElementAsLandscapePage(doc, html2canvasLib, {
@@ -870,6 +959,7 @@ async function exportDashboardPdf() {
         title: target.title,
         reportTitle,
         dateLabel,
+        timeLabel,
         generatedAt
       });
     }
