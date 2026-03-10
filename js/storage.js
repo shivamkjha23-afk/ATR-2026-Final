@@ -56,7 +56,7 @@ function generateId(prefix = 'REC') {
 }
 
 function sanitizeName(value) {
-  return String(value || 'entry').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'entry';
+  return String(value || 'entry').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 140) || 'entry';
 }
 
 function normalizeUsername(username) {
