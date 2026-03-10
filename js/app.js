@@ -825,18 +825,16 @@ function setupInspectionPage() {
 }
 
 async function filesToPaths(fileList, observationId, tagNo) {
-  const paths = [];
   const safeTag = sanitizeName(tagNo || 'tag');
-  let idx = 1;
-  for (const file of Array.from(fileList)) {
+  const files = Array.from(fileList || []);
+  const uploads = files.map(async (file, index) => {
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
-    const standardizedName = `${safeTag}_${observationId}_${String(idx).padStart(2, '0')}.${ext}`;
+    const standardizedName = `${safeTag}_${observationId}_${String(index + 1).padStart(2, '0')}.${ext}`;
     const imagePath = `data/images/${standardizedName}`;
     const uploadedUrl = await saveImageDataAtPath(imagePath, file);
-    paths.push(uploadedUrl || imagePath);
-    idx += 1;
-  }
-  return paths;
+    return uploadedUrl || imagePath;
+  });
+  return Promise.all(uploads);
 }
 
 function statusClass(status) {
@@ -1032,7 +1030,15 @@ ${getLoggedInUser()}`);
       const observationId = editId || generateId('OBS');
       const tagNo = document.getElementById('obsTag').value;
       const selectedFiles = imageInput.files || [];
-      const imagePaths = selectedFiles.length ? await filesToPaths(selectedFiles, observationId, tagNo) : editImagePaths;
+      let imagePaths = editImagePaths;
+      if (selectedFiles.length) {
+        suppressSync = true;
+        try {
+          imagePaths = await filesToPaths(selectedFiles, observationId, tagNo);
+        } finally {
+          suppressSync = false;
+        }
+      }
       upsertById('observations', {
         id: observationId,
         tag_number: tagNo,

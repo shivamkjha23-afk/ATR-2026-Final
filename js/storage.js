@@ -450,14 +450,34 @@ async function saveImageDataAtPath(path, base64DataOrBlob) {
     }
   }
 
-  const db = readDB();
-  db.images[path] = persistedImage;
-  saveDB(db);
+  runtimeDB.images = runtimeDB.images || {};
+  runtimeDB.images[path] = persistedImage;
+  runtimeDB._meta = runtimeDB._meta || {};
+  runtimeDB._meta.last_updated = nowStamp();
+  persistLocalCache();
   return persistedImage;
 }
 
+async function saveMultipleImages(files = []) {
+  const results = {};
+
+  const uploads = files.map(async ({ fileName, data }) => {
+    const path = `data/images/${generateId('IMG')}-${fileName}`;
+    const url = await saveImageDataAtPath(path, data);
+    results[path] = url;
+    return { path, url };
+  });
+
+  await Promise.all(uploads);
+  if (!suppressSync) scheduleAutoSync();
+  return results;
+}
+
 async function saveImageData(fileName, base64Data) {
-  return saveImageDataAtPath(`data/images/${generateId('IMG')}-${fileName}`, base64Data);
+  const path = `data/images/${generateId('IMG')}-${fileName}`;
+  const url = await saveImageDataAtPath(path, base64Data);
+  if (!suppressSync) scheduleAutoSync();
+  return url;
 }
 
 function getImageData(path) {
@@ -530,6 +550,7 @@ function hasMeaningfulRuntimeData(db) {
 
 async function preventBlankCloudOverwrite(localPayload) {
   if (hasMeaningfulRuntimeData(localPayload)) return localPayload;
+  if (syncInFlight) return localPayload;
 
   const remote = await readCloudRuntimeData();
   if (!remote || !hasMeaningfulRuntimeData(remote)) return localPayload;
