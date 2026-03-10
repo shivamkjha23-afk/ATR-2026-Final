@@ -644,7 +644,7 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);
   doc.text('Dashboard Summary', 12, 29);
 
@@ -653,7 +653,7 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   const cardGap = 8;
   const totalWidth = pageWidth - (marginX * 2);
   const cardWidth = (totalWidth - (cardGap * (cards.length - 1))) / cards.length;
-  const cardY = 34;
+  const cardY = 44;
   const cardHeight = 38;
 
   cards.forEach((card, idx) => {
