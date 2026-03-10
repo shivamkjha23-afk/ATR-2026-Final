@@ -596,12 +596,25 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
   const contentHeight = pageHeight - contentY - 10;
   const contentWidth = pageWidth - (margin * 2);
 
-  const canvas = await html2canvas(element, {
-    backgroundColor: '#0b1220',
-    scale: 2,
-    useCORS: true,
-    logging: false
-  });
+  const exportToken = `pdf-export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  element.setAttribute('data-pdf-export-token', exportToken);
+
+  let canvas;
+  try {
+    canvas = await html2canvas(element, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      onclone: (clonedDoc) => {
+        const clonedElement = clonedDoc.querySelector(`[data-pdf-export-token="${exportToken}"]`);
+        if (!clonedElement) return;
+        prepareDashboardExportClone(clonedElement, clonedDoc);
+      }
+    });
+  } finally {
+    element.removeAttribute('data-pdf-export-token');
+  }
 
   const imageData = canvas.toDataURL('image/png', 0.95);
   const imageRatio = canvas.width / canvas.height;
@@ -623,6 +636,91 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
   doc.setFontSize(11);
   doc.text(title, margin, 23);
   doc.addImage(imageData, 'PNG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+}
+
+function styleExportSummaryCards(container) {
+  const cards = Array.from(container.querySelectorAll('.card'));
+  cards.forEach((card) => {
+    card.style.background = '#f8fafc';
+    card.style.border = '1px solid #cbd5e1';
+    card.style.borderRadius = '12px';
+    card.style.boxShadow = 'none';
+    card.style.color = '#0f172a';
+  });
+
+  const labels = Array.from(container.querySelectorAll('.card h3'));
+  labels.forEach((label) => {
+    label.style.color = '#1e293b';
+  });
+
+  const values = Array.from(container.querySelectorAll('.card p'));
+  values.forEach((value) => {
+    value.style.color = '#0f172a';
+    value.style.fontSize = '1.8rem';
+  });
+}
+
+function styleExportTables(container) {
+  const tables = Array.from(container.querySelectorAll('table'));
+  tables.forEach((table) => {
+    table.style.background = '#ffffff';
+    table.style.color = '#0f172a';
+    table.style.borderCollapse = 'collapse';
+  });
+
+  const headers = Array.from(container.querySelectorAll('th'));
+  headers.forEach((cell) => {
+    cell.style.background = '#e2e8f0';
+    cell.style.color = '#0f172a';
+    cell.style.border = '1px solid #cbd5e1';
+  });
+
+  const dataCells = Array.from(container.querySelectorAll('td'));
+  dataCells.forEach((cell) => {
+    cell.style.background = '#ffffff';
+    cell.style.color = '#0f172a';
+    cell.style.border = '1px solid #cbd5e1';
+  });
+
+  const oddRows = Array.from(container.querySelectorAll('tbody tr:nth-child(odd) td'));
+  oddRows.forEach((cell) => {
+    cell.style.background = '#f8fafc';
+  });
+
+  const totalCells = Array.from(container.querySelectorAll('tfoot td'));
+  totalCells.forEach((cell) => {
+    cell.style.background = '#e2e8f0';
+    cell.style.fontWeight = '700';
+  });
+
+  const wrappers = Array.from(container.querySelectorAll('.table-wrap, .vessel-progress-wrap'));
+  wrappers.forEach((wrap) => {
+    wrap.style.background = '#ffffff';
+    wrap.style.border = '1px solid #cbd5e1';
+    wrap.style.borderRadius = '8px';
+    wrap.style.padding = '2px';
+  });
+}
+
+function styleExportChartCard(container) {
+  const charts = Array.from(container.querySelectorAll('.chart-card'));
+  charts.forEach((chartCard) => {
+    chartCard.style.background = '#ffffff';
+    chartCard.style.border = '1px solid #cbd5e1';
+    chartCard.style.borderRadius = '12px';
+  });
+}
+
+function prepareDashboardExportClone(container, clonedDoc) {
+  clonedDoc.documentElement.setAttribute('data-theme', 'light');
+
+  container.style.background = '#ffffff';
+  container.style.color = '#0f172a';
+  container.style.boxShadow = 'none';
+
+  styleExportSummaryCards(container);
+  styleExportTables(container);
+  styleExportChartCard(container);
 }
 
 function writeKeyValueList(doc, items, y) {
