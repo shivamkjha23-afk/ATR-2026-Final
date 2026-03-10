@@ -427,18 +427,33 @@ async function uploadToCloudinary(fileName, fileInput) {
   return body.secure_url;
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Unable to read image file for local fallback.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function saveImageDataAtPath(path, base64DataOrBlob) {
-  let uploadedUrl = '';
+  let persistedImage = '';
   try {
-    uploadedUrl = await uploadToCloudinary(path, base64DataOrBlob);
+    persistedImage = await uploadToCloudinary(path, base64DataOrBlob);
   } catch (err) {
-    setSyncStatus({ ok: false, message: `Cloudinary upload failed: ${err.message}` });
-    throw err;
+    if (base64DataOrBlob instanceof Blob) {
+      persistedImage = await blobToDataUrl(base64DataOrBlob);
+      setSyncStatus({ ok: false, message: `Cloudinary upload failed; saved image locally instead: ${err.message}` });
+    } else {
+      persistedImage = String(base64DataOrBlob || '');
+      setSyncStatus({ ok: false, message: `Cloudinary upload failed; used provided local image data: ${err.message}` });
+    }
   }
+
   const db = readDB();
-  db.images[path] = uploadedUrl;
+  db.images[path] = persistedImage;
   saveDB(db);
-  return uploadedUrl;
+  return persistedImage;
 }
 
 async function saveImageData(fileName, base64Data) {
