@@ -553,10 +553,12 @@ function downloadTextFile(fileName, content) {
 
 async function initializeData() {
   const cached = localStorage.getItem(STORAGE_KEYS.localCache);
+  let localCacheLoaded = false;
   if (cached) {
     try {
       runtimeDB = clone({ ...DB_TEMPLATE, ...JSON.parse(cached) });
       ensureRuntimeDefaults();
+      localCacheLoaded = true;
     } catch (err) {
       console.warn('Local cache parse failed:', err);
     }
@@ -569,9 +571,18 @@ async function initializeData() {
     const cloudData = await readCloudRuntimeData();
 
     if (cloudData) {
-      runtimeDB = clone({ ...DB_TEMPLATE, ...cloudData });
-      ensureRuntimeDefaults();
-      setSyncStatus({ ok: true, message: 'Loaded data from Firebase cloud.' });
+      const cloudStamp = new Date(cloudData._meta?.last_updated || 0).getTime();
+      const localStamp = new Date(runtimeDB._meta?.last_updated || 0).getTime();
+
+      if (!localCacheLoaded || cloudStamp >= localStamp) {
+        runtimeDB = clone({ ...DB_TEMPLATE, ...cloudData });
+        ensureRuntimeDefaults();
+        setSyncStatus({ ok: true, message: 'Loaded data from Firebase cloud.' });
+      } else {
+        persistLocalCache();
+        scheduleAutoSync();
+        setSyncStatus({ ok: true, message: 'Loaded latest data from local cache and scheduled Firebase sync.' });
+      }
       return;
     }
 

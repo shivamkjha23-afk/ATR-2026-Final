@@ -46,14 +46,23 @@ function computeSummary(rows = [], opts = {}) {
   }
 
   if (requisitionMode) {
-    const completed = rows.filter((r) => String(r.result || '').toLowerCase() === 'completed').length;
+    const parseJobSize = (value) => {
+      const normalized = Number.parseFloat(String(value ?? '').replace(/,/g, '').trim());
+      return Number.isFinite(normalized) ? normalized : 0;
+    };
+    const totalJobSize = rows.reduce((sum, r) => sum + parseJobSize(r.job_size), 0);
+    const completedJobSize = rows
+      .filter((r) => String(r.result || '').trim() !== '')
+      .reduce((sum, r) => sum + parseJobSize(r.job_size), 0);
     return {
-      total: rows.length,
-      planned: rows.length,
-      completed,
-      todayCompleted: rows.filter((r) => String(r.timestamp || r.requisition_datetime || '').slice(0, 10) === today && String(r.result || '').toLowerCase() === 'completed').length,
-      inProgress: Math.max(rows.length - completed, 0),
-      percent: rows.length ? Number(((completed / rows.length) * 100).toFixed(1)) : 0
+      total: Number(totalJobSize.toFixed(2)),
+      completed: Number(completedJobSize.toFixed(2)),
+      todayCompleted: Number(rows
+        .filter((r) => String(r.timestamp || r.requisition_datetime || '').slice(0, 10) === today && String(r.result || '').trim() !== '')
+        .reduce((sum, r) => sum + parseJobSize(r.job_size), 0)
+        .toFixed(2)),
+      inProgress: Number(Math.max(totalJobSize - completedJobSize, 0).toFixed(2)),
+      percent: totalJobSize ? Number(((completedJobSize / totalJobSize) * 100).toFixed(1)) : 0
     };
   }
 
@@ -407,10 +416,10 @@ function sectionRequisitionRT() {
 
   const rows = units.map((unit) => {
     const s = computeSummary(grouped[unit], { mode: 'requisition' });
-    return [unit, s.total, s.planned, s.completed, `${s.percent}%`];
+    return [unit, s.total, s.completed, `${s.percent}%`];
   });
 
-  const plannedData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).planned);
+  const plannedData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).total);
   const completedData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).completed);
   const percentData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).percent);
 
@@ -418,7 +427,7 @@ function sectionRequisitionRT() {
     html: `
       <section class="table-card">
         <h2>Requisition Dashboard (RT)</h2>
-        ${renderUnitTable(['Unit', 'Total Requisitions', 'Planned', 'Completed', 'Progress %'], rows)}
+        ${renderUnitTable(['Plant', 'Total Requisition (Job Size)', 'Completed (Job Size, Result Not Blank)', 'Progress %'], rows)}
         <article class="chart-card"><canvas id="requisitionRtChart"></canvas></article>
       </section>
     `,
