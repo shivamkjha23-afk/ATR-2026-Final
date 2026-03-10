@@ -651,7 +651,7 @@ function addSummaryCardToPdf(doc, card, x, y, width, height) {
   doc.roundedRect(x, y, width, height, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
+  doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
   doc.text(`${card.title} Summary`, x + 4, y + 8);
 
@@ -660,12 +660,13 @@ function addSummaryCardToPdf(doc, card, x, y, width, height) {
   let lineY = y + 15;
   metrics.forEach(([label, value]) => {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.text(`${label}:`, x + 4, lineY);
 
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
     doc.text(String(value), x + width - 6, lineY, { align: 'right' });
-    lineY += 7;
+    lineY += 6;
   });
 }
 
@@ -674,7 +675,7 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.setTextColor(30, 41, 59);
   doc.text('Dashboard Summary', 12, 29);
 
@@ -685,7 +686,7 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   const cardsPerRow = Math.min(3, cards.length);
   const cardWidth = (totalWidth - (cardGap * (cardsPerRow - 1))) / cardsPerRow;
   const cardStartY = 40;
-  const cardHeight = 42;
+  const cardHeight = 40;
   const rowGap = 8;
 
   cards.forEach((card, idx) => {
@@ -697,6 +698,89 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   });
 }
 
+function addObservationListPages(doc, options = {}) {
+  const {
+    reportTitle,
+    pageWidth,
+    pageHeight,
+    dateLabel,
+    timeLabel,
+    generatedAt
+  } = options;
+  const rows = getCollection('observations');
+  const headers = ['Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
+  const widths = [24, 24, 30, 78, 78, 24, 19];
+  const startY = 34;
+  const bottomLimit = pageHeight - 14;
+
+  let y = startY;
+
+  const drawHeader = () => {
+    doc.addPage('a4', 'landscape');
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
+    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('Observation List', 12, 28);
+
+    let x = 10;
+    doc.setFontSize(10.5);
+    headers.forEach((header, idx) => {
+      doc.setFillColor(226, 232, 240);
+      doc.rect(x, y - 5, widths[idx], 8, 'FD');
+      doc.text(header, x + 1, y);
+      x += widths[idx];
+    });
+    y += 8;
+  };
+
+  const normalizeValue = (value) => String(value || '-');
+
+  const getRowLines = (row = {}) => {
+    const values = [
+      row.tag_number,
+      row.unit,
+      row.location,
+      row.observation,
+      row.recommendation,
+      row.status,
+      (row.images || []).length ? 'Yes' : 'No'
+    ];
+    return values.map((value, idx) => doc.splitTextToSize(normalizeValue(value), widths[idx] - 2));
+  };
+
+  drawHeader();
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+
+  if (!rows.length) {
+    doc.text('No observations available.', 12, y + 2);
+    return;
+  }
+
+  rows.forEach((row) => {
+    const lines = getRowLines(row);
+    const lineCount = Math.max(1, ...lines.map((line) => line.length));
+    const rowHeight = Math.max(8, (lineCount * 4.6) + 2);
+
+    if ((y + rowHeight) > bottomLimit) {
+      y = startY;
+      drawHeader();
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+    }
+
+    let x = 10;
+    lines.forEach((cellLines, idx) => {
+      doc.rect(x, y - 5, widths[idx], rowHeight);
+      doc.text(cellLines, x + 1, y);
+      x += widths[idx];
+    });
+
+    y += rowHeight;
+  });
+}
+
 
 async function waitForDashboardVisualStability() {
   await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
@@ -705,7 +789,8 @@ async function waitForDashboardVisualStability() {
 
 function collectDashboardExportTargets(root) {
   const sections = Array.from(root.querySelectorAll('.table-card'));
-  const targets = [];
+  const tables = [];
+  const charts = [];
 
   sections.forEach((section) => {
     const title = section.querySelector('h2')?.textContent?.trim() || 'Dashboard Section';
@@ -714,17 +799,17 @@ function collectDashboardExportTargets(root) {
     const cards = section.querySelector('.cards-grid');
 
     if (table) {
-      targets.push({ title: `${title} - Table`, element: table });
+      tables.push({ title: `${title} - Table`, element: table });
     }
 
     if (chart) {
-      targets.push({ title: `${title} - Chart`, element: chart });
+      charts.push({ title: `${title} - Chart`, element: chart });
     } else if (cards) {
-      targets.push({ title: `${title} - Summary`, element: cards });
+      charts.push({ title: `${title} - Summary`, element: cards });
     }
   });
 
-  return targets;
+  return { tables, charts };
 }
 
 async function addElementAsLandscapePage(doc, html2canvas, options) {
@@ -797,7 +882,7 @@ function styleExportSummaryCards(container) {
   const values = Array.from(container.querySelectorAll('.card p'));
   values.forEach((value) => {
     value.style.color = '#0f172a';
-    value.style.fontSize = '1.8rem';
+    value.style.fontSize = '2.25rem';
   });
 }
 
@@ -807,6 +892,8 @@ function styleExportTables(container) {
     table.style.background = '#ffffff';
     table.style.color = '#0f172a';
     table.style.borderCollapse = 'collapse';
+    table.style.fontSize = '14px';
+    table.style.lineHeight = '1.25';
   });
 
   const headers = Array.from(container.querySelectorAll('th'));
@@ -814,6 +901,8 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
+    cell.style.fontSize = '14px';
+    cell.style.padding = '6px';
   });
 
   const dataCells = Array.from(container.querySelectorAll('td'));
@@ -821,6 +910,8 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
+    cell.style.fontSize = '13px';
+    cell.style.padding = '5px';
   });
 
   const oddRows = Array.from(container.querySelectorAll('tbody tr:nth-child(odd) td'));
@@ -982,7 +1073,7 @@ async function exportDashboardPdf() {
     await waitForDashboardVisualStability();
 
     const targets = collectDashboardExportTargets(root);
-    if (!targets.length) {
+    if (!targets.tables.length && !targets.charts.length) {
       alert('No dashboard content available to export.');
       return;
     }
@@ -998,7 +1089,36 @@ async function exportDashboardPdf() {
 
     addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
-    for (const target of targets) {
+    addObservationListPages(doc, {
+      reportTitle,
+      pageWidth,
+      pageHeight,
+      dateLabel,
+      timeLabel,
+      generatedAt
+    });
+
+    const orderedTables = [
+      'Vessel Dashboard - Table',
+      'Steam Trap Dashboard - Table',
+      'Pipeline Dashboard - Table',
+      'Requisition Dashboard (RT) - Table'
+    ];
+
+    for (const orderedTitle of orderedTables) {
+      const target = targets.tables.find((entry) => entry.title === orderedTitle);
+      if (!target) continue;
+      await addElementAsLandscapePage(doc, html2canvasLib, {
+        element: target.element,
+        title: target.title,
+        reportTitle,
+        dateLabel,
+        timeLabel,
+        generatedAt
+      });
+    }
+
+    for (const target of targets.charts) {
       await addElementAsLandscapePage(doc, html2canvasLib, {
         element: target.element,
         title: target.title,
