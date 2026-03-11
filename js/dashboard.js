@@ -250,7 +250,7 @@ function renderVesselProgressTable(rows = []) {
   `;
 }
 
-function renderInspectionChartWithOpportunity(canvasId, labels, plannedData, opportunityData, completedData) {
+function renderInspectionChartWithOpportunity(canvasId, labels, plannedData, opportunityData, completedData, showPercentLine = true) {
   const baseData = plannedData.map((v, idx) => v + (opportunityData[idx] || 0));
   const percentData = labels.map((_, idx) => {
     const denom = baseData[idx] || 0;
@@ -261,31 +261,36 @@ function renderInspectionChartWithOpportunity(canvasId, labels, plannedData, opp
   if (!canvas || typeof Chart === 'undefined') return;
   if (DASHBOARD_CHARTS[canvasId]) DASHBOARD_CHARTS[canvasId].destroy();
 
+  const datasets = [
+    { label: 'Planned', data: plannedData, backgroundColor: '#0ea5e9' },
+    { label: 'Opportunity Based', data: opportunityData, backgroundColor: '#f59e0b' },
+    { label: 'Completed', data: completedData, backgroundColor: '#22c55e' }
+  ];
+
+  if (showPercentLine) {
+    datasets.push({
+      label: '% Completed',
+      data: percentData,
+      type: 'line',
+      yAxisID: 'y1',
+      borderColor: '#a855f7',
+      backgroundColor: '#a855f7',
+      tension: 0.2
+    });
+  }
+
   DASHBOARD_CHARTS[canvasId] = new Chart(canvas, {
     type: 'bar',
     data: {
       labels,
-      datasets: [
-        { label: 'Planned', data: plannedData, backgroundColor: '#0ea5e9' },
-        { label: 'Opportunity Based', data: opportunityData, backgroundColor: '#f59e0b' },
-        { label: 'Completed', data: completedData, backgroundColor: '#22c55e' },
-        {
-          label: '% Completed',
-          data: percentData,
-          type: 'line',
-          yAxisID: 'y1',
-          borderColor: '#a855f7',
-          backgroundColor: '#a855f7',
-          tension: 0.2
-        }
-      ]
+      datasets
     },
     options: {
       responsive: true,
       interaction: { mode: 'index', intersect: false },
       scales: {
         y: { beginAtZero: true },
-        y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false } }
+        y1: showPercentLine ? { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false } } : undefined
       }
     }
   });
@@ -310,6 +315,7 @@ function renderUnitTable(headers, rows) {
 
 function sectionInspection(title, type, chartId, options = {}) {
   const includeOpportunity = options.includeOpportunity === true;
+  const showPercentLine = options.showPercentLine !== false;
   const enableInspectionScopeFilter = options.enableInspectionScopeFilter === true;
   const enableInspectionStatusFilter = options.enableInspectionStatusFilter === true;
   const selectedInspectionScopeFilter = options.inspectionScopeFilter || 'All';
@@ -394,7 +400,7 @@ function sectionInspection(title, type, chartId, options = {}) {
     const completedData = units.map((u) => computeSummary(grouped[u], { mode: 'inspection' }).completed);
     return {
       html: sectionHtml,
-      chart: () => renderInspectionChartWithOpportunity(chartId, units, plannedData, opportunityData, completedData)
+      chart: () => renderInspectionChartWithOpportunity(chartId, units, plannedData, opportunityData, completedData, showPercentLine)
     };
   }
 
@@ -405,7 +411,10 @@ function sectionInspection(title, type, chartId, options = {}) {
     return planned ? Number(((completedData[idx] / planned) * 100).toFixed(1)) : 0;
   });
 
-  return { html: sectionHtml, chart: () => renderBarChart(chartId, units, plannedData, completedData, percentData) };
+  return {
+    html: sectionHtml,
+    chart: () => renderBarChart(chartId, units, plannedData, completedData, showPercentLine ? percentData : [])
+  };
 }
 
 function sectionRequisitionRT() {
@@ -421,8 +430,6 @@ function sectionRequisitionRT() {
 
   const plannedData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).total);
   const completedData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).completed);
-  const percentData = units.map((u) => computeSummary(grouped[u], { mode: 'requisition' }).percent);
-
   return {
     html: `
       <section class="table-card">
@@ -431,7 +438,7 @@ function sectionRequisitionRT() {
         <article class="chart-card"><canvas id="requisitionRtChart"></canvas></article>
       </section>
     `,
-    chart: () => renderBarChart('requisitionRtChart', units, plannedData, completedData, percentData)
+    chart: () => renderBarChart('requisitionRtChart', units, plannedData, completedData, [])
   };
 }
 
@@ -463,6 +470,7 @@ function renderDashboard() {
 
   const vessel = sectionInspection('Vessel Dashboard', 'Vessel', 'vesselAnalyticsChart', {
     includeOpportunity: true,
+    showPercentLine: false,
     enableInspectionScopeFilter: true,
     enableInspectionStatusFilter: true,
     inspectionScopeStateKey: 'vesselInspectionScopeFilter',
@@ -470,8 +478,9 @@ function renderDashboard() {
     inspectionStatusStateKey: 'vesselInspectionStatusFilter',
     inspectionStatusFilter: DASHBOARD_STATE.vesselInspectionStatusFilter
   });
-  const pipeline = sectionInspection('Pipeline Dashboard', 'Pipeline', 'pipelineAnalyticsChart');
+  const pipeline = sectionInspection('Pipeline Dashboard', 'Pipeline', 'pipelineAnalyticsChart', { showPercentLine: false });
   const steamTrap = sectionInspection('Steam Trap Dashboard', 'Steam Trap', 'steamTrapAnalyticsChart', {
+    showPercentLine: false,
     enableInspectionScopeFilter: true,
     inspectionScopeStateKey: 'steamTrapInspectionScopeFilter',
     inspectionScopeFilter: DASHBOARD_STATE.steamTrapInspectionScopeFilter
