@@ -56,7 +56,7 @@ function generateId(prefix = 'REC') {
 }
 
 function sanitizeName(value) {
-  return String(value || 'entry').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40) || 'entry';
+  return String(value || 'entry').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 140) || 'entry';
 }
 
 function normalizeUsername(username) {
@@ -340,7 +340,13 @@ function readDB() {
 }
 
 function persistLocalCache() {
-  localStorage.setItem(STORAGE_KEYS.localCache, JSON.stringify(runtimeDB));
+  try {
+    localStorage.setItem(STORAGE_KEYS.localCache, JSON.stringify(runtimeDB));
+  } catch (err) {
+    const message = err?.message || 'Local cache write failed.';
+    console.warn('Local cache persistence failed:', err);
+    setSyncStatus({ ok: false, message: `Local cache warning: ${message}` });
+  }
 }
 
 function saveDB(db) {
@@ -441,13 +447,16 @@ async function saveImageDataAtPath(path, base64DataOrBlob) {
   try {
     persistedImage = await uploadToCloudinary(path, base64DataOrBlob);
   } catch (err) {
+    const fallbackMessage = err?.message || 'Cloudinary upload failed.';
     if (base64DataOrBlob instanceof Blob) {
-      persistedImage = await blobToDataUrl(base64DataOrBlob);
-      setSyncStatus({ ok: false, message: `Cloudinary upload failed; saved image locally instead: ${err.message}` });
-    } else {
-      persistedImage = String(base64DataOrBlob || '');
-      setSyncStatus({ ok: false, message: `Cloudinary upload failed; used provided local image data: ${err.message}` });
+      // Do not persist large base64 blobs for file uploads; this can overflow localStorage
+      // and break record save/sync. Keep observation save resilient even if image upload fails.
+      setSyncStatus({ ok: false, message: `Cloudinary upload failed for ${path}. Saved observation without this image: ${fallbackMessage}` });
+      return '';
     }
+
+    persistedImage = String(base64DataOrBlob || '');
+    setSyncStatus({ ok: false, message: `Cloudinary upload failed; used provided local image data: ${fallbackMessage}` });
   }
 
   runtimeDB.images = runtimeDB.images || {};

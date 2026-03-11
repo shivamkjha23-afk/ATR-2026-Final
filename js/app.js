@@ -827,14 +827,21 @@ function setupInspectionPage() {
 async function filesToPaths(fileList, observationId, tagNo) {
   const safeTag = sanitizeName(tagNo || 'tag');
   const files = Array.from(fileList || []);
-  const uploads = files.map(async (file, index) => {
+  const settled = await Promise.allSettled(files.map(async (file, index) => {
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
     const standardizedName = `${safeTag}_${observationId}_${String(index + 1).padStart(2, '0')}.${ext}`;
     const imagePath = `data/images/${standardizedName}`;
     const uploadedUrl = await saveImageDataAtPath(imagePath, file);
-    return uploadedUrl || imagePath;
-  });
-  return Promise.all(uploads);
+    if (!uploadedUrl) throw new Error(`${file.name || standardizedName} upload failed.`);
+    return uploadedUrl;
+  }));
+
+  const imagePaths = settled
+    .filter((result) => result.status === 'fulfilled')
+    .map((result) => result.value);
+
+  const failedCount = settled.length - imagePaths.length;
+  return { imagePaths, failedCount };
 }
 
 function statusClass(status) {
@@ -1034,7 +1041,11 @@ ${getLoggedInUser()}`);
       if (selectedFiles.length) {
         suppressSync = true;
         try {
-          imagePaths = await filesToPaths(selectedFiles, observationId, tagNo);
+          const uploadResult = await filesToPaths(selectedFiles, observationId, tagNo);
+          imagePaths = uploadResult.imagePaths;
+          if (uploadResult.failedCount > 0 && typeof setSyncStatus === 'function') {
+            setSyncStatus({ ok: false, message: `${uploadResult.failedCount} image(s) failed to upload. Observation was saved with successful images.` });
+          }
         } finally {
           suppressSync = false;
         }
