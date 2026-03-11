@@ -707,7 +707,34 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   });
 }
 
-function addObservationListPages(doc, options = {}) {
+function loadImageAsDataUrl(src) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.referrerPolicy = 'no-referrer';
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(image, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(dataUrl || null);
+      } catch (error) {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+async function addObservationListPages(doc, options = {}) {
   const {
     reportTitle,
     pageWidth,
@@ -717,10 +744,14 @@ function addObservationListPages(doc, options = {}) {
     generatedAt
   } = options;
   const rows = getCollection('observations');
-  const headers = ['Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
-  const widths = [24, 24, 30, 78, 78, 24, 19];
+  const headers = ['Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status'];
+  const widths = [24, 24, 30, 97, 78, 24];
   const startY = 34;
   const bottomLimit = pageHeight - 14;
+
+  const observationColIdx = 3;
+  const imageGap = 2;
+  const imageHeight = 18;
 
   let y = startY;
 
@@ -752,43 +783,82 @@ function addObservationListPages(doc, options = {}) {
       row.location,
       row.observation,
       row.recommendation,
-      row.status,
-      (row.images || []).length ? 'Yes' : 'No'
+      row.status
     ];
     return values.map((value, idx) => doc.splitTextToSize(normalizeValue(value), widths[idx] - 2));
   };
 
   drawHeader();
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(12);
 
   if (!rows.length) {
     doc.text('No observations available.', 12, y + 2);
     return;
   }
 
-  rows.forEach((row) => {
+  for (const row of rows) {
     const lines = getRowLines(row);
+    const images = Array.isArray(row.images) ? row.images.filter(Boolean) : [];
     const lineCount = Math.max(1, ...lines.map((line) => line.length));
-    const rowHeight = Math.max(8, (lineCount * 4.6) + 2);
+    const textRowHeight = Math.max(11, (lineCount * 5.2) + 2);
+
+    const obsInnerWidth = widths[observationColIdx] - 2;
+    const imageWidth = (obsInnerWidth - (imageGap * 2)) / 3;
+    const imageRows = images.length ? Math.ceil(images.length / 3) : 0;
+    const imagesBlockHeight = imageRows ? (6 + (imageRows * imageHeight) + ((imageRows - 1) * imageGap)) : 0;
+
+    const rowHeight = textRowHeight + imagesBlockHeight;
 
     if ((y + rowHeight) > bottomLimit) {
       y = startY;
       drawHeader();
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
+      doc.setFontSize(12);
     }
 
     let x = 10;
-    lines.forEach((cellLines, idx) => {
+    for (let idx = 0; idx < lines.length; idx += 1) {
+      const cellLines = lines[idx];
       doc.rect(x, y - 5, widths[idx], rowHeight);
-      doc.text(cellLines, x + 1, y);
+
+      if (idx === observationColIdx) {
+        doc.text(cellLines, x + 1, y);
+
+        if (images.length) {
+          const imageStartY = y - 5 + textRowHeight;
+          doc.setFontSize(9);
+          doc.text('Images', x + 1, imageStartY + 4);
+          doc.setFontSize(12);
+
+          for (let imageIdx = 0; imageIdx < images.length; imageIdx += 1) {
+            const imageUrl = images[imageIdx];
+            const gridRow = Math.floor(imageIdx / 3);
+            const gridCol = imageIdx % 3;
+            const imageX = x + 1 + (gridCol * (imageWidth + imageGap));
+            const imageY = imageStartY + 6 + (gridRow * (imageHeight + imageGap));
+
+            try {
+              const imageData = await loadImageAsDataUrl(imageUrl);
+              doc.addImage(imageData, 'JPEG', imageX, imageY, imageWidth, imageHeight, undefined, 'FAST');
+            } catch (error) {
+              doc.setFontSize(8);
+              doc.text('Image unavailable', imageX + 1, imageY + 8);
+              doc.setFontSize(12);
+            }
+          }
+        }
+      } else {
+        doc.text(cellLines, x + 1, y);
+      }
+
       x += widths[idx];
-    });
+    }
 
     y += rowHeight;
-  });
+  }
 }
+
 
 
 async function waitForDashboardVisualStability() {
@@ -901,7 +971,7 @@ function styleExportTables(container) {
     table.style.background = '#ffffff';
     table.style.color = '#0f172a';
     table.style.borderCollapse = 'collapse';
-    table.style.fontSize = '14px';
+    table.style.fontSize = '18px';
     table.style.lineHeight = '1.25';
   });
 
@@ -910,7 +980,7 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '14px';
+    cell.style.fontSize = '17px';
     cell.style.padding = '6px';
   });
 
@@ -919,7 +989,7 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '13px';
+    cell.style.fontSize = '17px';
     cell.style.padding = '5px';
   });
 
@@ -1098,7 +1168,7 @@ async function exportDashboardPdf() {
 
     addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
-    addObservationListPages(doc, {
+    await addObservationListPages(doc, {
       reportTitle,
       pageWidth,
       pageHeight,
