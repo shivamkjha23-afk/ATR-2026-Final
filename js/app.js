@@ -830,15 +830,20 @@ async function filesToPaths(fileList, observationId, tagNo) {
   const settled = await Promise.allSettled(files.map(async (file, index) => {
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
     const standardizedName = `${safeTag}_${observationId}_${String(index + 1).padStart(2, '0')}.${ext}`;
-    const imagePath = `data/images/${standardizedName}`;
-    const uploadedUrl = await saveImageDataAtPath(imagePath, file);
+    console.log('[Observation] Uploading image to Cloudinary:', standardizedName);
+    const uploadedUrl = await uploadToCloudinary(standardizedName, file);
     if (!uploadedUrl) throw new Error(`${file.name || standardizedName} upload failed.`);
+    console.log('[Observation] Cloudinary upload success:', uploadedUrl);
     return uploadedUrl;
   }));
 
   const imagePaths = settled
     .filter((result) => result.status === 'fulfilled')
     .map((result) => result.value);
+
+  settled
+    .filter((result) => result.status === 'rejected')
+    .forEach((result) => console.error('[Observation] Cloudinary upload failed:', result.reason));
 
   const failedCount = settled.length - imagePaths.length;
   return { imagePaths, failedCount };
@@ -897,8 +902,13 @@ function setupObservationPage() {
     if (!document.getElementById('obsLocation').value) document.getElementById('obsLocation').value = row.equipment_name || '';
   };
 
-  function render() {
-    const rows = getCollection('observations');
+  function getDisplayImageUrl(value) {
+    if (!value) return '';
+    if (/^https?:\/\//.test(value)) return value;
+    return getImageData(value);
+  }
+
+  function render(rows = getCollection('observations')) {
     tbody.innerHTML = rows.map((r) => `
       <tr>
         <td>${r.tag_number}</td><td>${r.unit}</td><td>${r.location}</td>
@@ -906,7 +916,11 @@ function setupObservationPage() {
         <td><select class="obs-status ${statusClass(r.status)}" data-id="${r.id}">
           ${['Not Started', 'In Progress', 'Completed'].map((s) => `<option ${r.status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select></td>
-        <td>${(r.images || []).map((p) => `<img class="mini-preview clickable-img" data-src="${getImageData(p)}" src="${getImageData(p)}" alt="img"/>`).join('')}</td>
+        <td>${(r.images || []).map((p) => {
+          const imageUrl = getDisplayImageUrl(p);
+          if (!imageUrl) return '';
+          return `<img class="mini-preview clickable-img" data-src="${imageUrl}" src="${imageUrl}" alt="img"/>`;
+        }).join('')}</td>
         <td>
           <button class="btn edit-obs" data-id="${r.id}" type="button">Edit</button>
           <button class="btn email-obs" data-id="${r.id}" type="button">Draft Email</button>
@@ -928,7 +942,11 @@ function setupObservationPage() {
         document.getElementById('obsObservation').value = row.observation || '';
         document.getElementById('obsRecommendation').value = row.recommendation || '';
         document.getElementById('obsStatus').value = row.status || 'Not Started';
-        preview.innerHTML = editImagePaths.map((p) => `<img class="mini-preview" src="${getImageData(p)}" alt="saved preview"/>`).join('');
+        preview.innerHTML = editImagePaths.map((p) => {
+          const imageUrl = getDisplayImageUrl(p);
+          if (!imageUrl) return '';
+          return `<img class="mini-preview" src="${imageUrl}" alt="saved preview"/>`;
+        }).join('');
         formTitle.textContent = 'Update Observation';
         submitBtn.textContent = 'Update Observation';
         panel.classList.remove('hidden');
@@ -1028,6 +1046,12 @@ ${getLoggedInUser()}`);
     });
   };
 
+  async function refetchObservations() {
+    const rows = getCollection('observations');
+    console.log(`[Observation] Refetched ${rows.length} observation(s) from Firebase runtime cache.`);
+    render(rows);
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (saveInProgress) return;
@@ -1039,17 +1063,16 @@ ${getLoggedInUser()}`);
       const selectedFiles = imageInput.files || [];
       let imagePaths = editImagePaths;
       if (selectedFiles.length) {
-        suppressSync = true;
-        try {
-          const uploadResult = await filesToPaths(selectedFiles, observationId, tagNo);
-          imagePaths = uploadResult.imagePaths;
-          if (uploadResult.failedCount > 0 && typeof setSyncStatus === 'function') {
+        const uploadResult = await filesToPaths(selectedFiles, observationId, tagNo);
+        imagePaths = uploadResult.imagePaths;
+        if (uploadResult.failedCount > 0) {
+          console.error(`[Observation] ${uploadResult.failedCount} image(s) failed to upload to Cloudinary.`);
+          if (typeof setSyncStatus === 'function') {
             setSyncStatus({ ok: false, message: `${uploadResult.failedCount} image(s) failed to upload. Observation was saved with successful images.` });
           }
-        } finally {
-          suppressSync = false;
         }
       }
+      console.log('[Observation] Saving observation payload to Firebase runtime collection.', { observationId, images: imagePaths.length });
       upsertById('observations', {
         id: observationId,
         tag_number: tagNo,
@@ -1073,8 +1096,9 @@ ${getLoggedInUser()}`);
       setButtonLoadingState(submitBtn, false, 'Save Observation');
       if (typeof setSyncStatus === 'function') setSyncStatus({ ok: true, message: 'Observation and images saved to cloud.' });
       refreshCompletedInspectionTags();
-      render();
+      await refetchObservations();
     } catch (err) {
+      console.error('[Observation] Save failed:', err);
       saveInProgress = false;
       setButtonLoadingState(submitBtn, false, editId ? 'Update Observation' : 'Save Observation');
       if (typeof setSyncStatus === 'function') setSyncStatus({ ok: false, message: err.message || 'Failed to save observation.' });
@@ -1084,11 +1108,11 @@ ${getLoggedInUser()}`);
 
   window.addEventListener('atr-db-updated', () => {
     refreshCompletedInspectionTags();
-    render();
+    refetchObservations();
   });
 
   refreshCompletedInspectionTags();
-  render();
+  refetchObservations();
 }
 
 function setupRequisitionPage() {
