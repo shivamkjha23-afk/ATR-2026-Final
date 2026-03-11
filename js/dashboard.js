@@ -707,7 +707,28 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   });
 }
 
-function addObservationListPages(doc, options = {}) {
+function loadImageAsDataUrl(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth || image.width;
+      canvas.height = image.naturalHeight || image.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas context unavailable'));
+        return;
+      }
+      ctx.drawImage(image, 0, 0);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    image.onerror = () => reject(new Error('Image load failed'));
+    image.src = src;
+  });
+}
+
+async function addObservationListPages(doc, options = {}) {
   const {
     reportTitle,
     pageWidth,
@@ -753,41 +774,61 @@ function addObservationListPages(doc, options = {}) {
       row.observation,
       row.recommendation,
       row.status,
-      (row.images || []).length ? 'Yes' : 'No'
+      ''
     ];
     return values.map((value, idx) => doc.splitTextToSize(normalizeValue(value), widths[idx] - 2));
   };
 
   drawHeader();
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(11);
 
   if (!rows.length) {
     doc.text('No observations available.', 12, y + 2);
     return;
   }
 
-  rows.forEach((row) => {
+  for (const row of rows) {
     const lines = getRowLines(row);
+    const hasImage = Array.isArray(row.images) && row.images.length > 0;
     const lineCount = Math.max(1, ...lines.map((line) => line.length));
-    const rowHeight = Math.max(8, (lineCount * 4.6) + 2);
+    const textRowHeight = Math.max(10, (lineCount * 5) + 2);
+    const rowHeight = hasImage ? Math.max(textRowHeight, 26) : textRowHeight;
 
     if ((y + rowHeight) > bottomLimit) {
       y = startY;
       drawHeader();
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
+      doc.setFontSize(11);
     }
 
     let x = 10;
-    lines.forEach((cellLines, idx) => {
+    for (let idx = 0; idx < lines.length; idx += 1) {
+      const cellLines = lines[idx];
       doc.rect(x, y - 5, widths[idx], rowHeight);
-      doc.text(cellLines, x + 1, y);
+      if (idx === 6) {
+        const imageUrl = hasImage ? row.images[0] : '';
+        if (imageUrl) {
+          try {
+            const imageData = await loadImageAsDataUrl(imageUrl);
+            const cellPadding = 1;
+            const imgBoxWidth = widths[idx] - (cellPadding * 2);
+            const imgBoxHeight = rowHeight - (cellPadding * 2);
+            doc.addImage(imageData, 'JPEG', x + cellPadding, y - 5 + cellPadding, imgBoxWidth, imgBoxHeight, undefined, 'FAST');
+          } catch (error) {
+            doc.text('Image', x + 1, y + 3);
+          }
+        } else {
+          doc.text('—', x + 1, y + 3);
+        }
+      } else {
+        doc.text(cellLines, x + 1, y);
+      }
       x += widths[idx];
-    });
+    }
 
     y += rowHeight;
-  });
+  }
 }
 
 
@@ -901,7 +942,7 @@ function styleExportTables(container) {
     table.style.background = '#ffffff';
     table.style.color = '#0f172a';
     table.style.borderCollapse = 'collapse';
-    table.style.fontSize = '14px';
+    table.style.fontSize = '16px';
     table.style.lineHeight = '1.25';
   });
 
@@ -910,7 +951,7 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '14px';
+    cell.style.fontSize = '15px';
     cell.style.padding = '6px';
   });
 
@@ -919,7 +960,7 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '13px';
+    cell.style.fontSize = '15px';
     cell.style.padding = '5px';
   });
 
@@ -1098,7 +1139,7 @@ async function exportDashboardPdf() {
 
     addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
-    addObservationListPages(doc, {
+    await addObservationListPages(doc, {
       reportTitle,
       pageWidth,
       pageHeight,
