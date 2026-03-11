@@ -777,14 +777,15 @@ async function addObservationListPages(doc, options = {}) {
       row.location,
       row.observation,
       row.recommendation,
-      row.status
+      row.status,
+      ''
     ];
     return values.map((value, idx) => doc.splitTextToSize(normalizeValue(value), widths[idx] - 2));
   };
 
   drawHeader();
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(12);
+  doc.setFontSize(11);
 
   if (!rows.length) {
     doc.text('No observations available.', 12, y + 2);
@@ -793,59 +794,40 @@ async function addObservationListPages(doc, options = {}) {
 
   for (const row of rows) {
     const lines = getRowLines(row);
-    const images = Array.isArray(row.images) ? row.images.filter(Boolean) : [];
+    const hasImage = Array.isArray(row.images) && row.images.length > 0;
     const lineCount = Math.max(1, ...lines.map((line) => line.length));
-    const textRowHeight = Math.max(11, (lineCount * 5.2) + 2);
-
-    const obsInnerWidth = widths[observationColIdx] - 2;
-    const imageWidth = (obsInnerWidth - (imageGap * 2)) / 3;
-    const imageRows = images.length ? Math.ceil(images.length / 3) : 0;
-    const imagesBlockHeight = imageRows ? (6 + (imageRows * imageHeight) + ((imageRows - 1) * imageGap)) : 0;
-
-    const rowHeight = textRowHeight + imagesBlockHeight;
+    const textRowHeight = Math.max(10, (lineCount * 5) + 2);
+    const rowHeight = hasImage ? Math.max(textRowHeight, 26) : textRowHeight;
 
     if ((y + rowHeight) > bottomLimit) {
       y = startY;
       drawHeader();
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(12);
+      doc.setFontSize(11);
     }
 
     let x = 10;
     for (let idx = 0; idx < lines.length; idx += 1) {
       const cellLines = lines[idx];
       doc.rect(x, y - 5, widths[idx], rowHeight);
-
-      if (idx === observationColIdx) {
-        doc.text(cellLines, x + 1, y);
-
-        if (images.length) {
-          const imageStartY = y - 5 + textRowHeight;
-          doc.setFontSize(9);
-          doc.text('Images', x + 1, imageStartY + 4);
-          doc.setFontSize(12);
-
-          for (let imageIdx = 0; imageIdx < images.length; imageIdx += 1) {
-            const imageUrl = images[imageIdx];
-            const gridRow = Math.floor(imageIdx / 3);
-            const gridCol = imageIdx % 3;
-            const imageX = x + 1 + (gridCol * (imageWidth + imageGap));
-            const imageY = imageStartY + 6 + (gridRow * (imageHeight + imageGap));
-
-            try {
-              const imageData = await loadImageAsDataUrl(imageUrl);
-              doc.addImage(imageData, 'JPEG', imageX, imageY, imageWidth, imageHeight, undefined, 'FAST');
-            } catch (error) {
-              doc.setFontSize(8);
-              doc.text('Image unavailable', imageX + 1, imageY + 8);
-              doc.setFontSize(12);
-            }
+      if (idx === 6) {
+        const imageUrl = hasImage ? row.images[0] : '';
+        if (imageUrl) {
+          try {
+            const imageData = await loadImageAsDataUrl(imageUrl);
+            const cellPadding = 1;
+            const imgBoxWidth = widths[idx] - (cellPadding * 2);
+            const imgBoxHeight = rowHeight - (cellPadding * 2);
+            doc.addImage(imageData, 'JPEG', x + cellPadding, y - 5 + cellPadding, imgBoxWidth, imgBoxHeight, undefined, 'FAST');
+          } catch (error) {
+            doc.text('Image', x + 1, y + 3);
           }
+        } else {
+          doc.text('—', x + 1, y + 3);
         }
       } else {
         doc.text(cellLines, x + 1, y);
       }
-
       x += widths[idx];
     }
 
@@ -965,7 +947,7 @@ function styleExportTables(container) {
     table.style.background = '#ffffff';
     table.style.color = '#0f172a';
     table.style.borderCollapse = 'collapse';
-    table.style.fontSize = '18px';
+    table.style.fontSize = '16px';
     table.style.lineHeight = '1.25';
   });
 
@@ -974,7 +956,7 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '17px';
+    cell.style.fontSize = '15px';
     cell.style.padding = '6px';
   });
 
@@ -983,7 +965,7 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '17px';
+    cell.style.fontSize = '15px';
     cell.style.padding = '5px';
   });
 
