@@ -738,14 +738,10 @@ async function addObservationListPages(doc, options = {}) {
     generatedAt
   } = options;
   const rows = getCollection('observations');
-  const headers = ['Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status'];
-  const widths = [24, 24, 30, 97, 78, 24];
+  const headers = ['Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
+  const widths = [24, 24, 30, 89, 70, 22, 18];
   const startY = 34;
   const bottomLimit = pageHeight - 14;
-
-  const observationColIdx = 3;
-  const imageGap = 2;
-  const imageHeight = 18;
 
   let y = startY;
 
@@ -785,7 +781,7 @@ async function addObservationListPages(doc, options = {}) {
 
   drawHeader();
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
+  doc.setFontSize(16);
 
   if (!rows.length) {
     doc.text('No observations available.', 12, y + 2);
@@ -796,14 +792,14 @@ async function addObservationListPages(doc, options = {}) {
     const lines = getRowLines(row);
     const hasImage = Array.isArray(row.images) && row.images.length > 0;
     const lineCount = Math.max(1, ...lines.map((line) => line.length));
-    const textRowHeight = Math.max(10, (lineCount * 5) + 2);
+    const textRowHeight = Math.max(16, (lineCount * 7) + 3);
     const rowHeight = hasImage ? Math.max(textRowHeight, 26) : textRowHeight;
 
     if ((y + rowHeight) > bottomLimit) {
       y = startY;
       drawHeader();
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
+      doc.setFontSize(16);
     }
 
     let x = 10;
@@ -947,6 +943,7 @@ function styleExportTables(container) {
     table.style.background = '#ffffff';
     table.style.color = '#0f172a';
     table.style.borderCollapse = 'collapse';
+    table.style.tableLayout = 'fixed';
     table.style.fontSize = '16px';
     table.style.lineHeight = '1.25';
   });
@@ -956,8 +953,10 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '15px';
+    cell.style.fontSize = '16px';
     cell.style.padding = '6px';
+    cell.style.overflowWrap = 'anywhere';
+    cell.style.wordBreak = 'break-word';
   });
 
   const dataCells = Array.from(container.querySelectorAll('td'));
@@ -965,8 +964,10 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '15px';
+    cell.style.fontSize = '16px';
     cell.style.padding = '5px';
+    cell.style.overflowWrap = 'anywhere';
+    cell.style.wordBreak = 'break-word';
   });
 
   const oddRows = Array.from(container.querySelectorAll('tbody tr:nth-child(odd) td'));
