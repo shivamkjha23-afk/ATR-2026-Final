@@ -434,7 +434,7 @@ function sectionRequisitionRT() {
     html: `
       <section class="table-card">
         <h2>Requisition Dashboard (RT)</h2>
-        ${renderUnitTable(['Plant', 'Total Requisition (Job Size)', 'Completed (Job Size, Result Not Blank)', 'Progress %'], rows)}
+        ${renderUnitTable(['Plant', 'Total Requisition (Job Size) ID', 'Completed (Job Size, ID)', 'Progress %'], rows)}
         <article class="chart-card"><canvas id="requisitionRtChart"></canvas></article>
       </section>
     `,
@@ -799,7 +799,7 @@ async function addObservationListPages(doc, options = {}) {
       y = startY;
       drawHeader();
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(12);
+      doc.setFontSize(10);
     }
 
     let x = 10;
