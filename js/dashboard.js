@@ -1191,7 +1191,6 @@ async function exportDashboardPdf() {
     data: { labels, datasets },
     options: {
       responsive: true,
-      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
         y: { beginAtZero: true },
@@ -1295,7 +1294,6 @@ function sectionRequisitionRT() {
     html: `
       <section class="table-card">
         <h2>Requisition Dashboard (RT)</h2>
-        ${renderUnitTable(['Plant', 'Total Requisition (Job Size)', 'Completed (Job Size, Result Not Blank)', 'Progress %'], rows)}
         ${renderUnitTable(['Plant', 'Total Requisition (Job size (Inch Dia))', 'Completed (Job size (Inch Dia), Result Not Blank)', 'Result'], rows)}
         <article class="chart-card"><canvas id="requisitionRtChart"></canvas></article>
       </section>
@@ -1350,7 +1348,6 @@ function collectDashboardExportTargets(root) {
   const sections = Array.from(root.querySelectorAll('.table-card'));
   const tables = [];
   const charts = [];
-  const combined = [];
 
   sections.forEach((section) => {
     const title = section.querySelector('h2')?.textContent?.trim() || 'Dashboard Section';
@@ -1366,13 +1363,12 @@ function collectDashboardExportTargets(root) {
       charts.push({ title: `${title} - Chart`, element: chart });
     } else if (cards) {
       charts.push({ title: `${title} - Summary`, element: cards });
-    if (table || chart || cards) {
-      combined.push({ title: `${title} - Table + Chart`, element: section });
+
     }
   });
 
   return { tables, charts };
-  return { combined };
+
 }
 
 async function addElementAsLandscapePage(doc, html2canvas, options) {
@@ -1424,7 +1420,6 @@ function styleExportChartCard(container) {
     chartCard.style.background = '#ffffff';
     chartCard.style.border = '1px solid #cbd5e1';
     chartCard.style.borderRadius = '12px';
-    chartCard.style.padding = '6px';
   });
 }
 
@@ -1439,105 +1434,7 @@ function prepareDashboardExportClone(container, clonedDoc) {
   styleExportTables(container);
   styleExportChartCard(container);
 
-  if (container.classList.contains('table-card')) {
-    container.style.display = 'grid';
-    container.style.gridTemplateColumns = '1fr 0.38fr';
-    container.style.columnGap = '10px';
-    container.style.rowGap = '8px';
-
-    const heading = container.querySelector('h2');
-    if (heading) {
-      heading.style.gridColumn = '1 / -1';
-      heading.style.margin = '0';
-    }
-
-    const cards = container.querySelector('.cards-grid');
-    if (cards) {
-      cards.style.gridColumn = '1 / -1';
-      cards.style.marginBottom = '0';
-    }
-
-    const filterToolbars = Array.from(container.querySelectorAll('.tab-filter-toolbar'));
-    filterToolbars.forEach((toolbar) => {
-      toolbar.style.gridColumn = '1 / -1';
-      toolbar.style.marginBottom = '0';
-    });
-
-    const hint = container.querySelector('.hint');
-    if (hint) {
-      hint.style.gridColumn = '1 / -1';
-      hint.style.margin = '0';
-    }
-
-    const tableWrap = container.querySelector('.table-wrap, .vessel-progress-wrap');
-    if (tableWrap) {
-      tableWrap.style.gridColumn = '1 / 2';
-      tableWrap.style.margin = '0';
-    }
-
-    const chartCard = container.querySelector('.chart-card');
-    if (chartCard) {
-      chartCard.style.gridColumn = '2 / 3';
-      chartCard.style.alignSelf = 'start';
-      chartCard.style.maxHeight = '110mm';
-    }
-  }
-}
-
-function addCompletedVesselListPage(doc, options = {}) {
-  const {
-    reportTitle,
-    pageWidth,
-    pageHeight,
-    dateLabel,
-    timeLabel,
-    generatedAt
-  } = options;
-  const rows = getCollection('inspections')
-    .filter((row) => row.type === 'Vessel' && isCompletedInspection(row))
-    .sort((a, b) => String(a.unit_name || a.unit || '').localeCompare(String(b.unit_name || b.unit || '')))
-    .map((row) => [
-      row.equipment_tag_number || row.id || '-',
-      row.unit_name || row.unit || '-',
-      inspectionFormLabel(row.inspection_form || row.inspection_scope || '-') || '-'
-    ]);
-
-  doc.addPage('a4', 'landscape');
-  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
-  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
-
-  const title = 'Completed Vessel List';
-  const headers = ['Vessel', 'Unit', 'Inspection Type'];
-  const widths = [90, 90, 90];
-  let y = 28;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text(title, 12, y);
-  y += 8;
-  addTableRow(doc, headers, widths, y, true);
-  y += 8;
-
-  const contentRows = rows.length ? rows : [['-', '-', 'No completed vessel records']];
-  contentRows.forEach((row) => {
-    if (y > pageHeight - 18) {
-      doc.addPage('a4', 'landscape');
-      addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
-      addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
-      y = 28;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text(title, 12, y);
-      y += 8;
-      addTableRow(doc, headers, widths, y, true);
-      y += 8;
-    }
-    addTableRow(doc, row, widths, y);
-    y += 8;
-  });
-}
-
-function writeKeyValueList(doc, items, y) {
+ function writeKeyValueList(doc, items, y) {
   doc.setFontSize(10);
   items.forEach((item) => {
     doc.setFont('helvetica', 'bold');
@@ -1587,7 +1484,6 @@ function addTableRow(doc, columns, widths, y, isHeader = false) {
 
     const targets = collectDashboardExportTargets(root);
     if (!targets.tables.length && !targets.charts.length) {
-    if (!targets.combined.length) {
       alert('No dashboard content available to export.');
       return;
     }
@@ -1617,12 +1513,6 @@ function addTableRow(doc, columns, widths, y, isHeader = false) {
       'Steam Trap Dashboard - Table',
       'Pipeline Dashboard - Table',
       'Requisition Dashboard (RT) - Table'
-    const orderedSections = [
-      'Vessel Dashboard - Table + Chart',
-      'Steam Trap Dashboard - Table + Chart',
-      'Pipeline Dashboard - Table + Chart',
-      'Requisition Dashboard (RT) - Table + Chart',
-      'Observation Dashboard - Table + Chart'
     ];
 
     for (const orderedTitle of orderedTables) {
