@@ -842,12 +842,20 @@ function collectDashboardExportTargets(root) {
   const sections = Array.from(root.querySelectorAll('.table-card'));
   const tables = [];
   const charts = [];
+  const sectionEntries = [];
 
   sections.forEach((section) => {
     const title = section.querySelector('h2')?.textContent?.trim() || 'Dashboard Section';
     const table = section.querySelector('.table-wrap, .vessel-progress-wrap');
     const chart = section.querySelector('.chart-card');
     const cards = section.querySelector('.cards-grid');
+
+    sectionEntries.push({
+      title,
+      table: table || null,
+      chart: chart || null,
+      cards: cards || null
+    });
 
     if (table) {
       tables.push({ title: `${title} - Table`, element: table });
@@ -860,7 +868,20 @@ function collectDashboardExportTargets(root) {
     }
   });
 
-  return { tables, charts };
+  return { tables, charts, sections: sectionEntries };
+}
+
+function fitImageInBox(canvas, maxWidth, maxHeight) {
+  const ratio = canvas.width / canvas.height;
+  let width = maxWidth;
+  let height = width / ratio;
+
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * ratio;
+  }
+
+  return { width, height };
 }
 
 async function addElementAsLandscapePage(doc, html2canvas, options) {
@@ -913,6 +934,76 @@ async function addElementAsLandscapePage(doc, html2canvas, options) {
   doc.setFontSize(11);
   doc.text(title, margin, sectionTitleY);
   doc.addImage(imageData, 'PNG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+}
+
+async function captureElementForPdf(element, html2canvas) {
+  const exportToken = `pdf-export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  element.setAttribute('data-pdf-export-token', exportToken);
+
+  try {
+    return await html2canvas(element, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      onclone: (clonedDoc) => {
+        const clonedElement = clonedDoc.querySelector(`[data-pdf-export-token="${exportToken}"]`);
+        if (!clonedElement) return;
+        prepareDashboardExportClone(clonedElement, clonedDoc);
+      }
+    });
+  } finally {
+    element.removeAttribute('data-pdf-export-token');
+  }
+}
+
+async function addTableAndChartAsLandscapePage(doc, html2canvas, options) {
+  const {
+    tableElement,
+    chartElement,
+    title,
+    reportTitle,
+    dateLabel,
+    timeLabel = '',
+    generatedAt = ''
+  } = options;
+
+  if (!tableElement || !chartElement) return;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 10;
+  const sectionTitleY = 28;
+  const contentTopY = 34;
+  const contentBottomY = pageHeight - 10;
+  const contentWidth = pageWidth - (margin * 2);
+  const contentHeight = contentBottomY - contentTopY;
+  const tableBoxHeight = contentHeight * 0.52;
+  const gap = 3;
+  const chartBoxHeight = contentHeight - tableBoxHeight - gap;
+
+  const [tableCanvas, chartCanvas] = await Promise.all([
+    captureElementForPdf(tableElement, html2canvas),
+    captureElementForPdf(chartElement, html2canvas)
+  ]);
+
+  const tableFit = fitImageInBox(tableCanvas, contentWidth, tableBoxHeight);
+  const chartFit = fitImageInBox(chartCanvas, contentWidth, chartBoxHeight);
+
+  const tableX = (pageWidth - tableFit.width) / 2;
+  const tableY = contentTopY + ((tableBoxHeight - tableFit.height) / 2);
+  const chartX = (pageWidth - chartFit.width) / 2;
+  const chartY = contentTopY + tableBoxHeight + gap + ((chartBoxHeight - chartFit.height) / 2);
+
+  doc.addPage('a4', 'landscape');
+  addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
+  addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(title, margin, sectionTitleY);
+
+  doc.addImage(tableCanvas.toDataURL('image/png', 0.95), 'PNG', tableX, tableY, tableFit.width, tableFit.height, undefined, 'FAST');
+  doc.addImage(chartCanvas.toDataURL('image/png', 0.95), 'PNG', chartX, chartY, chartFit.width, chartFit.height, undefined, 'FAST');
 }
 
 function styleExportSummaryCards(container) {
@@ -1165,7 +1256,28 @@ async function exportDashboardPdf() {
       'Requisition Dashboard (RT) - Table'
     ];
 
+    const combinedExportSections = [
+      'Vessel Dashboard',
+      'Steam Trap Dashboard',
+      'Pipeline Dashboard'
+    ];
+
+    for (const sectionTitle of combinedExportSections) {
+      const sectionEntry = targets.sections.find((entry) => entry.title === sectionTitle);
+      if (!sectionEntry?.table || !sectionEntry?.chart) continue;
+      await addTableAndChartAsLandscapePage(doc, html2canvasLib, {
+        tableElement: sectionEntry.table,
+        chartElement: sectionEntry.chart,
+        title: `${sectionTitle} - Table + Chart`,
+        reportTitle,
+        dateLabel,
+        timeLabel,
+        generatedAt
+      });
+    }
+
     for (const orderedTitle of orderedTables) {
+      if (combinedExportSections.some((sectionTitle) => orderedTitle.startsWith(sectionTitle))) continue;
       const target = targets.tables.find((entry) => entry.title === orderedTitle);
       if (!target) continue;
       await addElementAsLandscapePage(doc, html2canvasLib, {
@@ -1179,6 +1291,7 @@ async function exportDashboardPdf() {
     }
 
     for (const target of targets.charts) {
+      if (combinedExportSections.some((sectionTitle) => target.title.startsWith(sectionTitle))) continue;
       await addElementAsLandscapePage(doc, html2canvasLib, {
         element: target.element,
         title: target.title,
