@@ -113,6 +113,7 @@ function renderBarChart(canvasId, labels, plannedData, completedData, percentDat
     data: { labels, datasets },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
         y: { beginAtZero: true },
@@ -287,6 +288,7 @@ function renderInspectionChartWithOpportunity(canvasId, labels, plannedData, opp
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
         y: { beginAtZero: true },
@@ -1009,41 +1011,46 @@ function prepareDashboardExportClone(container, clonedDoc) {
   styleExportChartCard(container);
 
   if (container.classList.contains('table-card')) {
-    container.style.display = 'block';
+    container.style.display = 'grid';
+    container.style.gridTemplateColumns = '1fr 0.38fr';
+    container.style.columnGap = '10px';
+    container.style.rowGap = '8px';
 
     const heading = container.querySelector('h2');
     if (heading) {
-      heading.style.margin = '0 0 6px';
+      heading.style.gridColumn = '1 / -1';
+      heading.style.margin = '0';
     }
 
     const cards = container.querySelector('.cards-grid');
     if (cards) {
-      cards.style.marginBottom = '6px';
+      cards.style.gridColumn = '1 / -1';
+      cards.style.marginBottom = '0';
     }
 
     const filterToolbars = Array.from(container.querySelectorAll('.tab-filter-toolbar'));
     filterToolbars.forEach((toolbar) => {
-      toolbar.style.marginBottom = '6px';
+      toolbar.style.gridColumn = '1 / -1';
+      toolbar.style.marginBottom = '0';
     });
+
+    const hint = container.querySelector('.hint');
+    if (hint) {
+      hint.style.gridColumn = '1 / -1';
+      hint.style.margin = '0';
+    }
 
     const tableWrap = container.querySelector('.table-wrap, .vessel-progress-wrap');
     if (tableWrap) {
-      tableWrap.style.marginBottom = '8px';
+      tableWrap.style.gridColumn = '1 / 2';
+      tableWrap.style.margin = '0';
     }
 
     const chartCard = container.querySelector('.chart-card');
     if (chartCard) {
-      chartCard.style.marginTop = '8px';
-      chartCard.style.width = '100%';
-      chartCard.style.height = '48mm';
-      chartCard.style.maxHeight = '48mm';
-      chartCard.style.overflow = 'hidden';
-
-      const chartCanvas = chartCard.querySelector('canvas');
-      if (chartCanvas) {
-        chartCanvas.style.width = '100%';
-        chartCanvas.style.height = '100%';
-      }
+      chartCard.style.gridColumn = '2 / 3';
+      chartCard.style.alignSelf = 'start';
+      chartCard.style.maxHeight = '110mm';
     }
   }
 }
