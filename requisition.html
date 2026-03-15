@@ -59,6 +59,10 @@
             <label>Location <input id="reqLocation" required /></label>
             <label>Unit <select id="reqUnit" required><option value="">Select Unit</option></select></label>
             <label>Job Size <input id="reqJobSize" /></label>
+            <label>Number of Joints <input type="number" id="noOfJoints" min="0" step="1" /></label>
+            <label>Joint Size <input type="number" id="jointSize" min="0" step="0.01" /></label>
+            <label>Total Job Size <input type="number" id="totalJobSize" readonly /></label>
+            <label>Number of Joints Completed <input type="number" id="jointsCompleted" min="0" step="1" /></label>
             <label>Requisition Date & Time <input type="datetime-local" id="reqDateTime" required /></label>
             <label>Result
               <select id="reqResult">

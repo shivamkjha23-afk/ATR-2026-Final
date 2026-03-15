@@ -46,20 +46,16 @@ function computeSummary(rows = [], opts = {}) {
   }
 
   if (requisitionMode) {
-    const parseJobSize = (value) => {
-      const normalized = Number.parseFloat(String(value ?? '').replace(/,/g, '').trim());
-      return Number.isFinite(normalized) ? normalized : 0;
-    };
-    const totalJobSize = rows.reduce((sum, r) => sum + parseJobSize(r.job_size), 0);
-    const completedJobSize = rows
-      .filter((r) => String(r.result || '').trim() !== '')
-      .reduce((sum, r) => sum + parseJobSize(r.job_size), 0);
+    const totalJobSize = rows.reduce((sum, r) => sum + Number(r.totalJobSize || 0), 0);
+    const completedJobSize = rows.reduce((sum, r) => (
+      sum + (Number(r.jointsCompleted || 0) * Number(r.jointSize || 0))
+    ), 0);
     return {
       total: Number(totalJobSize.toFixed(2)),
       completed: Number(completedJobSize.toFixed(2)),
       todayCompleted: Number(rows
-        .filter((r) => String(r.timestamp || r.requisition_datetime || '').slice(0, 10) === today && String(r.result || '').trim() !== '')
-        .reduce((sum, r) => sum + parseJobSize(r.job_size), 0)
+        .filter((r) => String(r.timestamp || r.requisition_datetime || '').slice(0, 10) === today)
+        .reduce((sum, r) => sum + (Number(r.jointsCompleted || 0) * Number(r.jointSize || 0)), 0)
         .toFixed(2)),
       inProgress: Number(Math.max(totalJobSize - completedJobSize, 0).toFixed(2)),
       percent: totalJobSize ? Number(((completedJobSize / totalJobSize) * 100).toFixed(1)) : 0
@@ -434,7 +430,7 @@ function sectionRequisitionRT() {
     html: `
       <section class="table-card">
         <h2>Requisition Dashboard (RT)</h2>
-        ${renderUnitTable(['Plant', 'Total Requisition (Job Size) ID', 'Completed (Job Size, ID)', 'Progress %'], rows)}
+        ${renderUnitTable(['Plant', 'Total Requisition (Job Size, ID)', 'Completed (Job Size, ID)', 'Progress %'], rows)}
         <article class="chart-card"><canvas id="requisitionRtChart"></canvas></article>
       </section>
     `,

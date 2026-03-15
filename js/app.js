@@ -1126,8 +1126,20 @@ function setupRequisitionPage() {
   const openBtn = document.getElementById('openRequisitionFormBtn');
   const result = document.getElementById('reqResult');
   const status2Wrap = document.getElementById('status2Wrap');
+  const jointsInput = document.getElementById('noOfJoints');
+  const jointSizeInput = document.getElementById('jointSize');
+  const totalJobSizeInput = document.getElementById('totalJobSize');
   let editId = '';
   let saveInProgress = false;
+
+  function updateTotalJobSize() {
+    const joints = parseFloat(jointsInput?.value) || 0;
+    const size = parseFloat(jointSizeInput?.value) || 0;
+    if (totalJobSizeInput) totalJobSizeInput.value = (joints * size).toFixed(2);
+  }
+
+  jointsInput?.addEventListener('input', updateTotalJobSize);
+  jointSizeInput?.addEventListener('input', updateTotalJobSize);
 
   UNIT_OPTIONS.forEach((u) => document.getElementById('reqUnit').insertAdjacentHTML('beforeend', `<option>${u}</option>`));
 
@@ -1155,6 +1167,10 @@ function setupRequisitionPage() {
           location: 'reqLocation',
           unit: 'reqUnit',
           job_size: 'reqJobSize',
+          noOfJoints: 'noOfJoints',
+          jointSize: 'jointSize',
+          totalJobSize: 'totalJobSize',
+          jointsCompleted: 'jointsCompleted',
           requisition_datetime: 'reqDateTime',
           result: 'reqResult',
           status_2: 'reqStatus2',
@@ -1164,6 +1180,7 @@ function setupRequisitionPage() {
           const el = document.getElementById(id);
           if (el) el.value = row[k] || '';
         });
+        if (!totalJobSizeInput?.value) updateTotalJobSize();
         status2Wrap.classList.toggle('hidden', row.result !== 'Reshoot');
         formTitle.textContent = 'Update Requisition';
         submitBtn.textContent = 'Update Requisition';
@@ -1197,6 +1214,7 @@ function setupRequisitionPage() {
     formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     openBtn.setAttribute('aria-expanded', 'true');
     document.getElementById('reqTag')?.focus();
+    updateTotalJobSize();
   };
 
   document.getElementById('closeRequisitionFormBtn').onclick = () => {
@@ -1222,6 +1240,10 @@ function setupRequisitionPage() {
       location: document.getElementById('reqLocation').value,
       unit: document.getElementById('reqUnit').value,
       job_size: document.getElementById('reqJobSize').value,
+      noOfJoints: Number(document.getElementById('noOfJoints').value),
+      jointSize: Number(document.getElementById('jointSize').value),
+      totalJobSize: Number(document.getElementById('totalJobSize').value),
+      jointsCompleted: Number(document.getElementById('jointsCompleted').value),
       requisition_datetime: document.getElementById('reqDateTime').value,
       result: document.getElementById('reqResult').value,
       status_2: document.getElementById('reqStatus2').value,
