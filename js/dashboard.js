@@ -1140,28 +1140,13 @@ function renderInspectionSummaryRows(rows = []) {
 }
 
 function renderRequisitionRtDetailRows(rows = []) {
-  const normalizedRows = rows
-    .slice()
-    .sort((a, b) => {
-      const aDate = Date.parse(a.requisition_datetime || a.timestamp || '');
-      const bDate = Date.parse(b.requisition_datetime || b.timestamp || '');
-      const safeADate = Number.isNaN(aDate) ? Number.POSITIVE_INFINITY : aDate;
-      const safeBDate = Number.isNaN(bDate) ? Number.POSITIVE_INFINITY : bDate;
-      return safeADate - safeBDate;
-    });
-
-  return normalizedRows.map((row) => ({
-    values: [
-      row.job_description || '-',
-      row.jointSize || 0,
-      row.noOfJoints || 0,
-      row.jointsCompleted || 0,
-      row.remarks || '-'
-    ],
-    rowFillColor: String(row.result || '').trim().toLowerCase() === 'defect observed (cut)'
-      ? [255, 230, 230]
-      : null
-  }));
+  return rows.map((row) => [
+    row.job_description || '-',
+    row.jointSize || 0,
+    row.noOfJoints || 0,
+    row.jointsCompleted || 0,
+    row.remarks || '-'
+  ]);
 }
 
 function paginateTable(doc, opts) {
@@ -1324,11 +1309,6 @@ async function exportDashboardPdf() {
       if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
         const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
         const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
-
-        doc.addPage('a4', 'landscape');
-        addPdfPageHeader(doc, reportTitle, pageWidth);
-        addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
-
         paginateTable(doc, {
           title: 'Requisition Dashboard (RT) - Detail',
           headers: [
