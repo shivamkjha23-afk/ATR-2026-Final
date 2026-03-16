@@ -1129,6 +1129,8 @@ function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
     doc.text(text, x + 1, y);
     x += widths[idx];
   });
+
+  return rowHeight;
 }
 
 function renderInspectionSummaryRows(rows = []) {
@@ -1171,23 +1173,28 @@ function paginateTable(doc, opts) {
     y = 24;
   };
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text(title, 12, y);
-  y += 8;
+  const renderTableTitleAndHeader = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(title, 12, y);
+    y += 4;
+    const headerHeight = addTableRow(doc, headers, widths, y, true, { maxLines: 3 });
+    y += headerHeight + 2;
+  };
 
-  addTableRow(doc, headers, widths, y, true);
-  y += 8;
+  renderTableTitleAndHeader();
 
   rows.forEach((row) => {
-    if (y > pageHeight - 18) {
+    const rowConfig = Array.isArray(row)
+      ? { values: row, rowFillColor: null }
+      : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
+
+    const rowLines = getTableRowLines(doc, rowConfig.values, widths, 3);
+    const rowHeight = getTableRowHeightFromLines(rowLines);
+
+    if (y + rowHeight > pageHeight - 12) {
       addPage();
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text(title, 12, y);
-      y += 8;
-      addTableRow(doc, headers, widths, y, true);
-      y += 8;
+      renderTableTitleAndHeader();
     }
 
     const rowConfig = Array.isArray(row)
