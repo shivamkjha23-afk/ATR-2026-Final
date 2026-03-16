@@ -118,6 +118,71 @@ function renderBarChart(canvasId, labels, plannedData, completedData, percentDat
   });
 }
 
+function renderInspectionDonutChart(canvasId, summary = {}, options = {}) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof Chart === 'undefined') return;
+
+  if (DASHBOARD_CHARTS[canvasId]) DASHBOARD_CHARTS[canvasId].destroy();
+
+  const includeInProgress = options.includeInProgress === true;
+  const totalJobs = Math.max(0, Number(summary.totalJobs || 0));
+  const completed = Math.max(0, Number(summary.completed || 0));
+  const inProgress = includeInProgress ? Math.max(0, Number(summary.inProgress || 0)) : 0;
+  const remaining = Math.max(totalJobs - completed - inProgress, 0);
+
+  const labels = includeInProgress
+    ? ['Completed', 'In Progress', 'Remaining']
+    : ['Completed', 'Remaining'];
+  const data = includeInProgress
+    ? [completed, inProgress, remaining]
+    : [completed, remaining];
+  const colors = includeInProgress
+    ? ['#22c55e', '#f59e0b', '#cbd5e1']
+    : ['#22c55e', '#cbd5e1'];
+
+  DASHBOARD_CHARTS[canvasId] = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderColor: '#ffffff',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '68%',
+      radius: '78%',
+      layout: {
+        padding: { top: 8, bottom: 8 }
+      },
+      plugins: {
+        title: {
+          display: true,
+          text: `Total Job (Nos): ${totalJobs}`,
+          color: '#0f172a',
+          font: {
+            size: 16,
+            weight: '700'
+          }
+        },
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: {
+              size: 14,
+              weight: '600'
+            },
+            padding: 16
+          }
+        }
+      }
+    }
+  });
+}
+
 
 function normalizeInspectionType(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -380,7 +445,7 @@ function sectionInspection(title, type, chartId, options = {}) {
     : ['Unit', 'Total Planned', 'Total Completed', `Today\'s Completed`];
 
   const sectionHtml = `
-    <section class="table-card">
+    <section class="table-card inspection-dashboard-section">
       <h2>${title}</h2>
       ${filterHtml}
       ${statusFilterHtml}
@@ -391,25 +456,30 @@ function sectionInspection(title, type, chartId, options = {}) {
   `;
 
   if (includeOpportunity) {
-    const plannedData = units.map((u) => computeSummary(grouped[u], { mode: 'inspection' }).planned);
-    const opportunityData = units.map((u) => computeSummary(grouped[u], { mode: 'inspection' }).opportunity);
-    const completedData = units.map((u) => computeSummary(grouped[u], { mode: 'inspection' }).completed);
+    const plannedRows = source.filter((row) => normalizeInspectionType(row.inspection_type) === 'planned');
+    const plannedCompleted = plannedRows.filter(isCompletedInspection).length;
+    const plannedInProgress = plannedRows.filter(isInProgressInspection).length;
     return {
       html: sectionHtml,
-      chart: () => renderInspectionChartWithOpportunity(chartId, units, plannedData, opportunityData, completedData, showPercentLine)
+      chart: () => renderInspectionDonutChart(chartId, {
+        totalJobs: plannedRows.length,
+        completed: plannedCompleted,
+        inProgress: plannedInProgress
+      }, {
+        includeInProgress: true
+      })
     };
   }
 
-  const plannedData = units.map((u) => computeSummary(grouped[u], { mode: 'inspection' }).planned);
-  const completedData = units.map((u) => computeSummary(grouped[u], { mode: 'inspection' }).completed);
-  const percentData = units.map((u, idx) => {
-    const planned = plannedData[idx] || 0;
-    return planned ? Number(((completedData[idx] / planned) * 100).toFixed(1)) : 0;
-  });
+  const plannedRows = source.filter((row) => normalizeInspectionType(row.inspection_type) === 'planned');
+  const plannedCompleted = plannedRows.filter(isCompletedInspection).length;
 
   return {
     html: sectionHtml,
-    chart: () => renderBarChart(chartId, units, plannedData, completedData, showPercentLine ? percentData : [])
+    chart: () => renderInspectionDonutChart(chartId, {
+      totalJobs: plannedRows.length,
+      completed: plannedCompleted
+    })
   };
 }
 
@@ -1032,7 +1102,7 @@ function styleExportTables(container) {
     table.style.borderCollapse = 'collapse';
     table.style.tableLayout = 'auto';
     table.style.width = '100%';
-    table.style.fontSize = '16px';
+    table.style.fontSize = '18px';
     table.style.lineHeight = '1.25';
   });
 
@@ -1041,7 +1111,7 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '16px';
+    cell.style.fontSize = '18px';
     cell.style.padding = '6px';
     cell.style.overflowWrap = 'normal';
     cell.style.wordBreak = 'normal';
@@ -1052,7 +1122,7 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '16px';
+    cell.style.fontSize = '18px';
     cell.style.padding = '5px';
     cell.style.overflowWrap = 'anywhere';
     cell.style.wordBreak = 'break-word';
