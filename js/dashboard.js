@@ -1133,6 +1133,16 @@ function renderInspectionSummaryRows(rows = []) {
   });
 }
 
+function renderRequisitionRtDetailRows(rows = []) {
+  return rows.map((row) => [
+    row.job_description || '-',
+    row.jointSize || 0,
+    row.noOfJoints || 0,
+    row.jointsCompleted || 0,
+    row.remarks || '-'
+  ]);
+}
+
 function paginateTable(doc, opts) {
   const {
     title,
@@ -1284,6 +1294,28 @@ async function exportDashboardPdf() {
         timeLabel,
         generatedAt
       });
+
+      if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
+        const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
+        const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
+        paginateTable(doc, {
+          title: 'Requisition Dashboard (RT) - Detail',
+          headers: [
+            'Job Description',
+            'Joint Size',
+            'Number of Joints',
+            'Number of Joints Completed',
+            'Remarks'
+          ],
+          rows: rtRequisitionDetailRows,
+          widths: [70, 30, 40, 48, 73],
+          startY: 24,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+          dateLabel
+        });
+      }
     }
 
     for (const target of targets.charts) {
