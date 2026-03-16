@@ -1219,6 +1219,13 @@ function renderRequisitionRtDetailRows(rows = []) {
     return Number.isFinite(ts) ? ts : 0;
   };
 
+  const getResultFillColor = (resultValue) => {
+    const normalizedResult = String(resultValue || '').trim().toLowerCase();
+    if (normalizedResult === 'defect observed (cut)') return [255, 242, 242];
+    if (normalizedResult === 'acceptable') return [242, 255, 242];
+    return [255, 252, 232];
+  };
+
   return [...rows]
     .sort((a, b) => toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp))
     .map((row) => [
