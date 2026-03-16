@@ -1114,11 +1114,17 @@ function writeKeyValueList(doc, items, y) {
   return y;
 }
 
-function addTableRow(doc, columns, widths, y, isHeader = false) {
+function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
   let x = 12;
+  const rowFillColor = opts?.rowFillColor;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
   columns.forEach((col, idx) => {
-    doc.rect(x, y - 4.5, widths[idx], 7);
+    if (rowFillColor && !isHeader) {
+      doc.setFillColor(...rowFillColor);
+      doc.rect(x, y - 4.5, widths[idx], 7, 'FD');
+    } else {
+      doc.rect(x, y - 4.5, widths[idx], 7);
+    }
     const text = doc.splitTextToSize(String(col ?? '-'), widths[idx] - 2).slice(0, 2);
     doc.text(text, x + 1, y);
     x += widths[idx];
@@ -1183,7 +1189,12 @@ function paginateTable(doc, opts) {
       addTableRow(doc, headers, widths, y, true);
       y += 8;
     }
-    addTableRow(doc, row, widths, y);
+
+    const rowConfig = Array.isArray(row)
+      ? { values: row, rowFillColor: null }
+      : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
+
+    addTableRow(doc, rowConfig.values, widths, y, false, { rowFillColor: rowConfig.rowFillColor });
     y += 8;
   });
 
