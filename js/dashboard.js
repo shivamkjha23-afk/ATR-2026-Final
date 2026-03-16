@@ -1223,6 +1223,7 @@ function renderRequisitionRtDetailRows(rows = []) {
     .sort((a, b) => toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp))
     .map((row) => [
     row.job_description || '-',
+    row.unit || '-',
     row.jointSize || 0,
     row.noOfJoints || 0,
     row.jointsCompleted || 0,
@@ -1284,20 +1285,21 @@ function paginateTable(doc, opts) {
     dateLabel
   } = opts;
 
-  let y = startY;
+  const tableStartY = Number.isFinite(startY) ? startY : 24;
+  let y = tableStartY;
 
   const addPage = () => {
     doc.addPage('a4', 'landscape');
     addPdfPageHeader(doc, reportTitle, pageWidth);
     addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
-    y = 24;
+    y = tableStartY;
   };
 
   const renderTableTitleAndHeader = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(title, 12, y);
-    y += 4;
+    y += 6;
     const headerHeight = addTableRow(doc, headers, widths, y, true, { maxLines: 3 });
     y += headerHeight + 2;
   };
@@ -1440,6 +1442,7 @@ async function exportDashboardPdf() {
           title: 'Requisition Dashboard (RT) - Detail',
           headers: [
             'Job Description',
+            'Unit',
             'Joint Size',
             'Number of Joints',
             'Number of Joints Completed',
@@ -1450,6 +1453,7 @@ async function exportDashboardPdf() {
             doc,
             [
               'Job Description',
+              'Unit',
               'Joint Size',
               'Number of Joints',
               'Number of Joints Completed',
@@ -1459,12 +1463,12 @@ async function exportDashboardPdf() {
             pageWidth - 24,
             {
               mainColumn: 0,
-              compactColumns: [1, 2, 3],
+              compactColumns: [2, 3, 4],
               maxCompactWidth: 24,
               minWidth: 14
             }
           ),
-          startY: 24,
+          startY: 30,
           pageWidth,
           pageHeight,
           reportTitle,
