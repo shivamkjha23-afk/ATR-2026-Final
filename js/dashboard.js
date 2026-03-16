@@ -1197,10 +1197,6 @@ function paginateTable(doc, opts) {
       renderTableTitleAndHeader();
     }
 
-    const rowConfig = Array.isArray(row)
-      ? { values: row, rowFillColor: null }
-      : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
-
     addTableRow(doc, rowConfig.values, widths, y, false, { rowFillColor: rowConfig.rowFillColor });
     y += 8;
   });
