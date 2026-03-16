@@ -1114,11 +1114,17 @@ function writeKeyValueList(doc, items, y) {
   return y;
 }
 
-function addTableRow(doc, columns, widths, y, isHeader = false) {
+function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
   let x = 12;
+  const rowFillColor = opts?.rowFillColor;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
   columns.forEach((col, idx) => {
-    doc.rect(x, y - 4.5, widths[idx], 7);
+    if (rowFillColor && !isHeader) {
+      doc.setFillColor(...rowFillColor);
+      doc.rect(x, y - 4.5, widths[idx], 7, 'FD');
+    } else {
+      doc.rect(x, y - 4.5, widths[idx], 7);
+    }
     const text = doc.splitTextToSize(String(col ?? '-'), widths[idx] - 2).slice(0, 2);
     doc.text(text, x + 1, y);
     x += widths[idx];
@@ -1131,6 +1137,31 @@ function renderInspectionSummaryRows(rows = []) {
     const s = computeSummary(grouped[unit], { mode: 'inspection' });
     return [unit, s.planned, s.opportunity, s.inProgress, s.completed, s.todayCompleted];
   });
+}
+
+function renderRequisitionRtDetailRows(rows = []) {
+  const normalizedRows = rows
+    .slice()
+    .sort((a, b) => {
+      const aDate = Date.parse(a.requisition_datetime || a.timestamp || '');
+      const bDate = Date.parse(b.requisition_datetime || b.timestamp || '');
+      const safeADate = Number.isNaN(aDate) ? Number.POSITIVE_INFINITY : aDate;
+      const safeBDate = Number.isNaN(bDate) ? Number.POSITIVE_INFINITY : bDate;
+      return safeADate - safeBDate;
+    });
+
+  return normalizedRows.map((row) => ({
+    values: [
+      row.job_description || '-',
+      row.jointSize || 0,
+      row.noOfJoints || 0,
+      row.jointsCompleted || 0,
+      row.remarks || '-'
+    ],
+    rowFillColor: String(row.result || '').trim().toLowerCase() === 'defect observed (cut)'
+      ? [255, 230, 230]
+      : null
+  }));
 }
 
 function paginateTable(doc, opts) {
@@ -1173,7 +1204,12 @@ function paginateTable(doc, opts) {
       addTableRow(doc, headers, widths, y, true);
       y += 8;
     }
-    addTableRow(doc, row, widths, y);
+
+    const rowConfig = Array.isArray(row)
+      ? { values: row, rowFillColor: null }
+      : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
+
+    addTableRow(doc, rowConfig.values, widths, y, false, { rowFillColor: rowConfig.rowFillColor });
     y += 8;
   });
 
@@ -1284,6 +1320,33 @@ async function exportDashboardPdf() {
         timeLabel,
         generatedAt
       });
+
+      if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
+        const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
+        const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
+
+        doc.addPage('a4', 'landscape');
+        addPdfPageHeader(doc, reportTitle, pageWidth);
+        addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+
+        paginateTable(doc, {
+          title: 'Requisition Dashboard (RT) - Detail',
+          headers: [
+            'Job Description',
+            'Joint Size',
+            'Number of Joints',
+            'Number of Joints Completed',
+            'Remarks'
+          ],
+          rows: rtRequisitionDetailRows,
+          widths: [70, 30, 40, 48, 73],
+          startY: 24,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+          dateLabel
+        });
+      }
     }
 
     for (const target of targets.charts) {
