@@ -1114,19 +1114,32 @@ function writeKeyValueList(doc, items, y) {
   return y;
 }
 
+function getTableRowLines(doc, columns = [], widths = [], maxLines = 2) {
+  return columns.map((col, idx) => doc
+    .splitTextToSize(String(col ?? '-'), Math.max((widths[idx] || 0) - 2, 6))
+    .slice(0, maxLines));
+}
+
+function getTableRowHeightFromLines(rowLines = []) {
+  const maxLines = rowLines.reduce((max, lines) => Math.max(max, lines.length || 1), 1);
+  return Math.max(7, (maxLines * 3.8) + 2.4);
+}
+
 function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
+  const maxLines = opts?.maxLines || 2;
+  const rowLines = getTableRowLines(doc, columns, widths, maxLines);
+  const rowHeight = getTableRowHeightFromLines(rowLines);
   let x = 12;
   const rowFillColor = opts?.rowFillColor;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
-  columns.forEach((col, idx) => {
+  rowLines.forEach((lines, idx) => {
     if (rowFillColor && !isHeader) {
       doc.setFillColor(...rowFillColor);
-      doc.rect(x, y - 4.5, widths[idx], 7, 'FD');
+      doc.rect(x, y - 4.5, widths[idx], rowHeight, 'FD');
     } else {
-      doc.rect(x, y - 4.5, widths[idx], 7);
+      doc.rect(x, y - 4.5, widths[idx], rowHeight);
     }
-    const text = doc.splitTextToSize(String(col ?? '-'), widths[idx] - 2).slice(0, 2);
-    doc.text(text, x + 1, y);
+    doc.text(lines, x + 1, y);
     x += widths[idx];
   });
 
