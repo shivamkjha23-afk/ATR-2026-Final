@@ -1155,13 +1155,61 @@ function renderInspectionSummaryRows(rows = []) {
 }
 
 function renderRequisitionRtDetailRows(rows = []) {
-  return rows.map((row) => [
+  const toTimestamp = (value) => {
+    const ts = Date.parse(value || '');
+    return Number.isFinite(ts) ? ts : 0;
+  };
+
+  return [...rows]
+    .sort((a, b) => toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp))
+    .map((row) => [
     row.job_description || '-',
     row.jointSize || 0,
     row.noOfJoints || 0,
     row.jointsCompleted || 0,
     row.remarks || '-'
-  ]);
+    ]);
+}
+
+function computeAutoColumnWidths(doc, headers = [], rows = [], totalWidth = 0, opts = {}) {
+  const compactColumns = opts.compactColumns || [];
+  const mainColumn = Number.isInteger(opts.mainColumn) ? opts.mainColumn : 0;
+  const minWidth = opts.minWidth || 14;
+  const maxCompactWidth = opts.maxCompactWidth || 24;
+
+  const measured = headers.map((header, idx) => {
+    const contentValues = [header, ...rows.map((row) => row[idx])];
+    const widest = contentValues.reduce((max, value) => Math.max(max, doc.getTextWidth(String(value ?? '-')) + 6), minWidth);
+    if (compactColumns.includes(idx)) return Math.min(maxCompactWidth, Math.max(minWidth, widest));
+    return Math.max(minWidth, widest);
+  });
+
+  const currentTotal = measured.reduce((sum, width) => sum + width, 0);
+  if (!totalWidth || currentTotal >= totalWidth) {
+    const overflow = currentTotal - totalWidth;
+    if (overflow > 0 && measured[mainColumn] > minWidth) {
+      measured[mainColumn] = Math.max(minWidth, measured[mainColumn] - overflow);
+    }
+  } else {
+    measured[mainColumn] += (totalWidth - currentTotal);
+  }
+
+  const widestNonMain = measured.reduce((max, width, idx) => (idx === mainColumn ? max : Math.max(max, width)), 0);
+  if (measured[mainColumn] <= widestNonMain) {
+    const needed = (widestNonMain + 2) - measured[mainColumn];
+    measured[mainColumn] += needed;
+    const flexible = measured.map((width, idx) => ({ idx, width })).filter((entry) => entry.idx !== mainColumn && !compactColumns.includes(entry.idx));
+    const shrinkTargets = flexible.length ? flexible : measured.map((width, idx) => ({ idx, width })).filter((entry) => entry.idx !== mainColumn);
+    let remaining = needed;
+    for (const target of shrinkTargets) {
+      if (remaining <= 0) break;
+      const shrink = Math.min(remaining, Math.max(0, measured[target.idx] - minWidth));
+      measured[target.idx] -= shrink;
+      remaining -= shrink;
+    }
+  }
+
+  return measured;
 }
 
 function paginateTable(doc, opts) {
@@ -1195,6 +1243,7 @@ function paginateTable(doc, opts) {
     y += headerHeight + 2;
   };
 
+  addPage();
   renderTableTitleAndHeader();
 
   rows.forEach((row) => {
@@ -1202,7 +1251,7 @@ function paginateTable(doc, opts) {
       ? { values: row, rowFillColor: null }
       : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
 
-    const rowLines = getTableRowLines(doc, rowConfig.values, widths, 3);
+    const rowLines = getTableRowLines(doc, rowConfig.values, widths, 6);
     const rowHeight = getTableRowHeightFromLines(rowLines);
 
     if (y + rowHeight > pageHeight - 12) {
@@ -1210,8 +1259,11 @@ function paginateTable(doc, opts) {
       renderTableTitleAndHeader();
     }
 
-    addTableRow(doc, rowConfig.values, widths, y, false, { rowFillColor: rowConfig.rowFillColor });
-    y += 8;
+    const renderedHeight = addTableRow(doc, rowConfig.values, widths, y, false, {
+      rowFillColor: rowConfig.rowFillColor,
+      maxLines: 6
+    });
+    y += renderedHeight + 2;
   });
 
   return y + 4;
@@ -1335,7 +1387,24 @@ async function exportDashboardPdf() {
             'Remarks'
           ],
           rows: rtRequisitionDetailRows,
-          widths: [70, 30, 40, 48, 73],
+          widths: computeAutoColumnWidths(
+            doc,
+            [
+              'Job Description',
+              'Joint Size',
+              'Number of Joints',
+              'Number of Joints Completed',
+              'Remarks'
+            ],
+            rtRequisitionDetailRows,
+            pageWidth - 24,
+            {
+              mainColumn: 0,
+              compactColumns: [1, 2, 3],
+              maxCompactWidth: 24,
+              minWidth: 14
+            }
+          ),
           startY: 24,
           pageWidth,
           pageHeight,
