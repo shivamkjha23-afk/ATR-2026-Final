@@ -1114,15 +1114,35 @@ function writeKeyValueList(doc, items, y) {
   return y;
 }
 
-function addTableRow(doc, columns, widths, y, isHeader = false) {
+function getTableRowLines(doc, columns, widths, maxLines = 2) {
+  return columns.map((col, idx) => doc.splitTextToSize(String(col ?? '-'), widths[idx] - 2).slice(0, maxLines));
+}
+
+function getTableRowHeightFromLines(lines = []) {
+  const maxLineCount = lines.reduce((max, cellLines) => Math.max(max, cellLines.length || 1), 1);
+  return Math.max(7, (maxLineCount * 4) + 2);
+}
+
+function addTableRow(doc, columns, widths, yTop, isHeader = false, opts = {}) {
   let x = 12;
+  const rowFillColor = opts?.rowFillColor;
+  const maxLines = opts?.maxLines || 2;
+  const rowLines = getTableRowLines(doc, columns, widths, maxLines);
+  const rowHeight = getTableRowHeightFromLines(rowLines);
+
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
-  columns.forEach((col, idx) => {
-    doc.rect(x, y - 4.5, widths[idx], 7);
-    const text = doc.splitTextToSize(String(col ?? '-'), widths[idx] - 2).slice(0, 2);
-    doc.text(text, x + 1, y);
+  rowLines.forEach((cellLines, idx) => {
+    if (rowFillColor && !isHeader) {
+      doc.setFillColor(...rowFillColor);
+      doc.rect(x, yTop, widths[idx], rowHeight, 'FD');
+    } else {
+      doc.rect(x, yTop, widths[idx], rowHeight);
+    }
+    doc.text(cellLines, x + 1, yTop + 3.5);
     x += widths[idx];
   });
+
+  return rowHeight;
 }
 
 function renderInspectionSummaryRows(rows = []) {
@@ -1131,6 +1151,31 @@ function renderInspectionSummaryRows(rows = []) {
     const s = computeSummary(grouped[unit], { mode: 'inspection' });
     return [unit, s.planned, s.opportunity, s.inProgress, s.completed, s.todayCompleted];
   });
+}
+
+function renderRequisitionRtDetailRows(rows = []) {
+  const normalizedRows = rows
+    .slice()
+    .sort((a, b) => {
+      const aDate = Date.parse(a.requisition_datetime || a.timestamp || '');
+      const bDate = Date.parse(b.requisition_datetime || b.timestamp || '');
+      const safeADate = Number.isNaN(aDate) ? Number.POSITIVE_INFINITY : aDate;
+      const safeBDate = Number.isNaN(bDate) ? Number.POSITIVE_INFINITY : bDate;
+      return safeADate - safeBDate;
+    });
+
+  return normalizedRows.map((row) => ({
+    values: [
+      row.job_description || '-',
+      row.jointSize || 0,
+      row.noOfJoints || 0,
+      row.jointsCompleted || 0,
+      row.remarks || '-'
+    ],
+    rowFillColor: String(row.result || '').trim().toLowerCase() === 'defect observed (cut)'
+      ? [255, 230, 230]
+      : null
+  }));
 }
 
 function paginateTable(doc, opts) {
@@ -1155,26 +1200,32 @@ function paginateTable(doc, opts) {
     y = 24;
   };
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text(title, 12, y);
-  y += 8;
+  const renderTableTitleAndHeader = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(title, 12, y);
+    y += 4;
+    const headerHeight = addTableRow(doc, headers, widths, y, true, { maxLines: 3 });
+    y += headerHeight + 2;
+  };
 
-  addTableRow(doc, headers, widths, y, true);
-  y += 8;
+  renderTableTitleAndHeader();
 
   rows.forEach((row) => {
-    if (y > pageHeight - 18) {
+    const rowConfig = Array.isArray(row)
+      ? { values: row, rowFillColor: null }
+      : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
+
+    const rowLines = getTableRowLines(doc, rowConfig.values, widths, 3);
+    const rowHeight = getTableRowHeightFromLines(rowLines);
+
+    if (y + rowHeight > pageHeight - 12) {
       addPage();
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text(title, 12, y);
-      y += 8;
-      addTableRow(doc, headers, widths, y, true);
-      y += 8;
+      renderTableTitleAndHeader();
     }
-    addTableRow(doc, row, widths, y);
-    y += 8;
+
+    addTableRow(doc, rowConfig.values, widths, y, false, { rowFillColor: rowConfig.rowFillColor, maxLines: 3 });
+    y += rowHeight + 2;
   });
 
   return y + 4;
@@ -1284,6 +1335,33 @@ async function exportDashboardPdf() {
         timeLabel,
         generatedAt
       });
+
+      if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
+        const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
+        const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
+
+        doc.addPage('a4', 'landscape');
+        addPdfPageHeader(doc, reportTitle, pageWidth);
+        addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+
+        paginateTable(doc, {
+          title: 'Requisition Dashboard (RT) - Detail',
+          headers: [
+            'Job Description',
+            'Joint Size',
+            'Number of Joints',
+            'Number of Joints Completed',
+            'Remarks'
+          ],
+          rows: rtRequisitionDetailRows,
+          widths: [70, 30, 40, 48, 73],
+          startY: 24,
+          pageWidth,
+          pageHeight,
+          reportTitle,
+          dateLabel
+        });
+      }
     }
 
     for (const target of targets.charts) {
