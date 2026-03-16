@@ -153,30 +153,19 @@ function renderInspectionDonutChart(canvasId, summary = {}, options = {}) {
     },
     options: {
       responsive: true,
-      cutout: '68%',
-      radius: '78%',
-      layout: {
-        padding: { top: 8, bottom: 8 }
-      },
+      cutout: '62%',
       plugins: {
         title: {
           display: true,
           text: `Total Job (Nos): ${totalJobs}`,
           color: '#0f172a',
           font: {
-            size: 16,
-            weight: '700'
+            size: 14,
+            weight: '600'
           }
         },
         legend: {
-          position: 'bottom',
-          labels: {
-            font: {
-              size: 14,
-              weight: '600'
-            },
-            padding: 16
-          }
+          position: 'bottom'
         }
       }
     }
