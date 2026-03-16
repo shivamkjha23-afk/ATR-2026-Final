@@ -1228,17 +1228,14 @@ function renderRequisitionRtDetailRows(rows = []) {
 
   return [...rows]
     .sort((a, b) => toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp))
-    .map((row) => ({
-      values: [
-        row.job_description || '-',
-        row.unit || '-',
-        row.jointSize || 0,
-        row.noOfJoints || 0,
-        row.jointsCompleted || 0,
-        row.remarks || '-'
-      ],
-      rowFillColor: getResultFillColor(row.result)
-    }));
+    .map((row) => [
+    row.job_description || '-',
+    row.unit || '-',
+    row.jointSize || 0,
+    row.noOfJoints || 0,
+    row.jointsCompleted || 0,
+    row.remarks || '-'
+    ]);
 }
 
 function computeAutoColumnWidths(doc, headers = [], rows = [], totalWidth = 0, opts = {}) {
