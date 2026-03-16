@@ -182,6 +182,28 @@ th { color: var(--muted); }
   background: rgba(148, 163, 184, 0.2);
 }
 
+
+.inspection-dashboard-section .table-wrap table,
+.inspection-dashboard-section .vessel-progress-table {
+  font-size: 1.02rem;
+}
+
+.inspection-dashboard-section .table-wrap th,
+.inspection-dashboard-section .table-wrap td {
+  font-size: 1rem;
+  padding: 0.68rem;
+}
+
+.inspection-dashboard-section .vessel-progress-table thead tr:first-child th {
+  font-size: 1.22rem;
+}
+
+.inspection-dashboard-section .vessel-progress-table thead tr:nth-child(2) th,
+.inspection-dashboard-section .vessel-progress-table td,
+.inspection-dashboard-section .vessel-progress-table tfoot td {
+  font-size: 1rem;
+}
+
 .admin-grid { display: grid; gap: 1rem; }
 .image-preview, .mini-preview { width: 120px; border-radius: 8px; border: 1px solid var(--field-border); }
 .multi-preview { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 1rem; }
