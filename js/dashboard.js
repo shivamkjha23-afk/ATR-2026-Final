@@ -1033,7 +1033,7 @@ async function addTableAndChartAsLandscapePage(doc, html2canvas, options) {
   const contentBottomY = pageHeight - 10;
   const contentWidth = pageWidth - (margin * 2);
   const contentHeight = contentBottomY - contentTopY;
-  const tableBoxHeight = contentHeight * 0.52;
+  const tableBoxHeight = contentHeight * 0.68;
   const gap = 3;
   const chartBoxHeight = contentHeight - tableBoxHeight - gap;
 
@@ -1091,8 +1091,8 @@ function styleExportTables(container) {
     table.style.borderCollapse = 'collapse';
     table.style.tableLayout = 'auto';
     table.style.width = '100%';
-    table.style.fontSize = '18px';
-    table.style.lineHeight = '1.25';
+    table.style.fontSize = '22px';
+    table.style.lineHeight = '1.35';
   });
 
   const headers = Array.from(container.querySelectorAll('th'));
@@ -1100,8 +1100,8 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '18px';
-    cell.style.padding = '6px';
+    cell.style.fontSize = '22px';
+    cell.style.padding = '10px 8px';
     cell.style.overflowWrap = 'normal';
     cell.style.wordBreak = 'normal';
   });
@@ -1111,8 +1111,8 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '18px';
-    cell.style.padding = '5px';
+    cell.style.fontSize = '21px';
+    cell.style.padding = '8px 8px';
     cell.style.overflowWrap = 'anywhere';
     cell.style.wordBreak = 'break-word';
   });
@@ -1133,7 +1133,7 @@ function styleExportTables(container) {
     wrap.style.background = '#ffffff';
     wrap.style.border = '1px solid #cbd5e1';
     wrap.style.borderRadius = '8px';
-    wrap.style.padding = '2px';
+    wrap.style.padding = '8px';
     wrap.style.overflow = 'visible';
     wrap.style.width = '100%';
     wrap.style.minWidth = '100%';
