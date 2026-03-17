@@ -1191,6 +1191,7 @@ function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
   let x = 12;
   const rowFillColor = opts?.rowFillColor;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
+  doc.setTextColor(15, 23, 42);
   rowLines.forEach((lines, idx) => {
     if (rowFillColor && !isHeader) {
       doc.setFillColor(...rowFillColor);
@@ -1228,14 +1229,17 @@ function renderRequisitionRtDetailRows(rows = []) {
 
   return [...rows]
     .sort((a, b) => toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp))
-    .map((row) => [
-    row.job_description || '-',
-    row.unit || '-',
-    row.jointSize || 0,
-    row.noOfJoints || 0,
-    row.jointsCompleted || 0,
-    row.remarks || '-'
-    ]);
+    .map((row) => ({
+      values: [
+        row.job_description || '-',
+        row.unit || '-',
+        row.jointSize || 0,
+        row.noOfJoints || 0,
+        row.jointsCompleted || 0,
+        row.remarks || '-'
+      ],
+      rowFillColor: getResultFillColor(row.result)
+    }));
 }
 
 function computeAutoColumnWidths(doc, headers = [], rows = [], totalWidth = 0, opts = {}) {
@@ -1245,7 +1249,10 @@ function computeAutoColumnWidths(doc, headers = [], rows = [], totalWidth = 0, o
   const maxCompactWidth = opts.maxCompactWidth || 24;
 
   const measured = headers.map((header, idx) => {
-    const contentValues = [header, ...rows.map((row) => row[idx])];
+    const contentValues = [header, ...rows.map((row) => {
+      if (Array.isArray(row)) return row[idx];
+      return row?.values?.[idx];
+    })];
     const widest = contentValues.reduce((max, value) => Math.max(max, doc.getTextWidth(String(value ?? '-')) + 6), minWidth);
     if (compactColumns.includes(idx)) return Math.min(maxCompactWidth, Math.max(minWidth, widest));
     return Math.max(minWidth, widest);
