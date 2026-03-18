@@ -1280,14 +1280,15 @@ function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
   const startX = Number.isFinite(opts?.startX) ? opts.startX : 12;
   let x = startX;
   const rowFillColor = opts?.rowFillColor;
+  const rowTop = y - 4.5;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
   doc.setTextColor(15, 23, 42);
   rowLines.forEach((lines, idx) => {
     if (rowFillColor && !isHeader) {
       doc.setFillColor(...rowFillColor);
-      doc.rect(x, y - 4.5, widths[idx], rowHeight, 'FD');
+      doc.rect(x, rowTop, widths[idx], rowHeight, 'FD');
     } else {
-      doc.rect(x, y - 4.5, widths[idx], rowHeight);
+      doc.rect(x, rowTop, widths[idx], rowHeight);
     }
     doc.text(lines, x + cellPaddingX, y);
     x += widths[idx];
