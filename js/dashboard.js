@@ -715,22 +715,22 @@ function addSummaryCardToPdf(doc, card, x, y, width, height) {
   doc.roundedRect(x, y, width, height, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(15);
   doc.setTextColor(15, 23, 42);
   doc.text(`${card.title} Summary`, x + 4, y + 8);
 
   const metrics = card.metrics || [];
 
-  let lineY = y + 15;
+  let lineY = y + 16;
   metrics.forEach(([label, value]) => {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
+    doc.setFontSize(12.5);
     doc.text(`${label}:`, x + 4, lineY);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(13.5);
     doc.text(String(value), x + width - 6, lineY, { align: 'right' });
-    lineY += 6;
+    lineY += 6.5;
   });
 }
 
@@ -750,7 +750,7 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
   const cardsPerRow = Math.min(3, cards.length);
   const cardWidth = (totalWidth - (cardGap * (cardsPerRow - 1))) / cardsPerRow;
   const cardStartY = 40;
-  const cardHeight = 40;
+  const cardHeight = 42;
   const rowGap = 8;
 
   cards.forEach((card, idx) => {
@@ -760,6 +760,83 @@ function addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, d
     const cardY = cardStartY + (row * (cardHeight + rowGap));
     addSummaryCardToPdf(doc, card, cardX, cardY, cardWidth, cardHeight);
   });
+}
+
+
+function getInspectionCompletionPercent(summary = {}) {
+  const total = Number(summary.total || 0);
+  const completed = Number(summary.completed || 0);
+  return total > 0 ? Number(((completed / total) * 100).toFixed(1)) : 0;
+}
+
+async function addInspectionDonutsToFirstPage(doc, html2canvas, root, pageWidth) {
+  const sectionTitles = ['Vessel Dashboard', 'Steam Trap Dashboard', 'Pipeline Dashboard'];
+  const cards = sectionTitles
+    .map((sectionTitle) => {
+      const section = Array.from(root.querySelectorAll('.table-card')).find((entry) => {
+        const title = entry.querySelector('h2')?.textContent?.trim() || '';
+        return title === sectionTitle;
+      });
+
+      return {
+        title: sectionTitle.replace(' Dashboard', ''),
+        chartElement: section?.querySelector('.chart-card') || null
+      };
+    })
+    .filter((entry) => entry.chartElement);
+
+  if (!cards.length) return;
+
+  const cardStartY = 40;
+  const cardHeight = 42;
+  const rowGap = 8;
+  const cardRows = Math.ceil(collectDashboardSummaryData().length / 3);
+  const cardsBottomY = cardStartY + ((cardRows - 1) * (cardHeight + rowGap)) + cardHeight;
+
+  const blockY = cardsBottomY + 8;
+  const availableHeight = 196 - blockY;
+  const blockHeight = Math.max(48, Math.min(64, availableHeight));
+  const gap = 6;
+  const marginX = 12;
+  const blockWidth = (pageWidth - (marginX * 2) - (gap * (cards.length - 1))) / cards.length;
+
+  const inspections = getCollection('inspections');
+  const percentByTitle = {
+    Vessel: getInspectionCompletionPercent(computeSummary(inspections.filter((row) => row.equipment_type === 'Vessel'), { mode: 'inspection' })),
+    'Steam Trap': getInspectionCompletionPercent(computeSummary(inspections.filter((row) => row.equipment_type === 'Steam Trap'), { mode: 'inspection' })),
+    Pipeline: getInspectionCompletionPercent(computeSummary(inspections.filter((row) => row.equipment_type === 'Pipeline'), { mode: 'inspection' }))
+  };
+
+  for (let idx = 0; idx < cards.length; idx += 1) {
+    const entry = cards[idx];
+    const chartCanvas = await captureElementForPdf(entry.chartElement, html2canvas);
+    const x = marginX + (idx * (blockWidth + gap));
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, blockY, blockWidth, blockHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(entry.title, x + (blockWidth / 2), blockY + 6, { align: 'center' });
+
+    const chartPaddingX = 2;
+    const chartY = blockY + 7;
+    const chartWidth = blockWidth - (chartPaddingX * 2);
+    const chartHeight = blockHeight - 10;
+    const fit = fitImageInBox(chartCanvas, chartWidth, chartHeight);
+    const imageX = x + ((blockWidth - fit.width) / 2);
+    const imageY = chartY + ((chartHeight - fit.height) / 2);
+    doc.addImage(chartCanvas.toDataURL('image/png', 0.95), 'PNG', imageX, imageY, fit.width, fit.height, undefined, 'FAST');
+
+    doc.setFillColor(255, 255, 255);
+    doc.circle(x + (blockWidth / 2), blockY + (blockHeight / 2) + 4, 5.6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${percentByTitle[entry.title] || 0}%`, x + (blockWidth / 2), blockY + (blockHeight / 2) + 5, { align: 'center' });
+  }
 }
 
 function loadImageAsDataUrl(src) {
@@ -792,9 +869,13 @@ async function addObservationListPages(doc, options = {}) {
     timeLabel,
     generatedAt
   } = options;
-  const rows = getCollection('observations');
-  const headers = ['Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
-  const widths = [23, 23, 28, 72, 57, 20, 54];
+  const toTimestamp = (row = {}) => {
+    const parsed = Date.parse(row.date_of_observation || row.observation_date || row.timestamp || '');
+    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+  };
+  const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(a) - toTimestamp(b));
+  const headers = ['Date of Observation', 'Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
+  const widths = [27, 19, 19, 22, 60, 51, 16, 54];
   const startY = 34;
   const bottomLimit = pageHeight - 14;
 
@@ -823,6 +904,7 @@ async function addObservationListPages(doc, options = {}) {
 
   const getRowLines = (row = {}) => {
     const values = [
+      String(row.date_of_observation || row.observation_date || row.timestamp || '-').slice(0, 10),
       row.tag_number,
       row.unit,
       row.location,
@@ -861,7 +943,7 @@ async function addObservationListPages(doc, options = {}) {
     for (let idx = 0; idx < lines.length; idx += 1) {
       const cellLines = lines[idx];
       doc.rect(x, y - 5, widths[idx], rowHeight);
-      if (idx === 6) {
+      if (idx === 7) {
         const imageUrl = hasImage ? row.images[0] : '';
         if (imageUrl) {
           try {
@@ -1091,7 +1173,7 @@ function styleExportTables(container) {
     table.style.borderCollapse = 'collapse';
     table.style.tableLayout = 'auto';
     table.style.width = '100%';
-    table.style.fontSize = '22px';
+    table.style.fontSize = '24px';
     table.style.lineHeight = '1.35';
   });
 
@@ -1100,7 +1182,7 @@ function styleExportTables(container) {
     cell.style.background = '#e2e8f0';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '22px';
+    cell.style.fontSize = '24px';
     cell.style.padding = '10px 8px';
     cell.style.overflowWrap = 'normal';
     cell.style.wordBreak = 'normal';
@@ -1111,8 +1193,8 @@ function styleExportTables(container) {
     cell.style.background = '#ffffff';
     cell.style.color = '#0f172a';
     cell.style.border = '1px solid #cbd5e1';
-    cell.style.fontSize = '21px';
-    cell.style.padding = '8px 8px';
+    cell.style.fontSize = '23px';
+    cell.style.padding = '10px 9px';
     cell.style.overflowWrap = 'anywhere';
     cell.style.wordBreak = 'break-word';
   });
@@ -1206,6 +1288,16 @@ function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
   return rowHeight;
 }
 
+function formatDateDdMmYy(value) {
+  const parsed = new Date(value || '');
+  if (Number.isNaN(parsed.getTime())) return '-';
+
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const yy = String(parsed.getFullYear()).slice(-2);
+  return `${dd}-${mm}-${yy}`;
+}
+
 function renderInspectionSummaryRows(rows = []) {
   const grouped = groupByUnit(rows);
   return Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map((unit) => {
@@ -1217,7 +1309,7 @@ function renderInspectionSummaryRows(rows = []) {
 function renderRequisitionRtDetailRows(rows = []) {
   const toTimestamp = (value) => {
     const ts = Date.parse(value || '');
-    return Number.isFinite(ts) ? ts : 0;
+    return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
   };
 
   const getResultFillColor = (resultValue) => {
@@ -1227,16 +1319,28 @@ function renderRequisitionRtDetailRows(rows = []) {
     return [255, 252, 232];
   };
 
+  const isRejectedResult = (resultValue) => {
+    const normalized = String(resultValue || '').trim().toLowerCase();
+    return normalized.includes('defect') || normalized.includes('reject') || normalized.includes('fail');
+  };
+
   return [...rows]
-    .sort((a, b) => toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp))
+    .sort((a, b) => {
+      const redA = isRejectedResult(a.result) ? 0 : 1;
+      const redB = isRejectedResult(b.result) ? 0 : 1;
+      if (redA !== redB) return redA - redB;
+      return toTimestamp(a.requisition_datetime || a.timestamp) - toTimestamp(b.requisition_datetime || b.timestamp);
+    })
     .map((row) => ({
       values: [
+        formatDateDdMmYy(row.requisition_datetime || row.timestamp),
         row.job_description || '-',
         row.unit || '-',
         row.jointSize || 0,
         row.noOfJoints || 0,
         row.jointsCompleted || 0,
-        row.remarks || '-'
+        row.remarks || '-',
+        row.result || '-'
       ],
       rowFillColor: getResultFillColor(row.result)
     }));
@@ -1344,6 +1448,32 @@ function paginateTable(doc, opts) {
   return y + 4;
 }
 
+function rebalanceRtDetailWidths(widths = []) {
+  if (!Array.isArray(widths) || widths.length < 8) return widths;
+
+  const next = [...widths];
+  const remarksIdx = 6;
+  const resultIdx = 7;
+  const remarksMin = 38;
+  const resultMin = 24;
+
+  if (next[remarksIdx] < remarksMin) {
+    let needed = remarksMin - next[remarksIdx];
+    const donors = [1, 4, 5, 7, 3, 2];
+    donors.forEach((idx) => {
+      if (needed <= 0) return;
+      const floor = idx === resultIdx ? resultMin : 14;
+      const available = Math.max(0, next[idx] - floor);
+      const shift = Math.min(available, needed);
+      next[idx] -= shift;
+      next[remarksIdx] += shift;
+      needed -= shift;
+    });
+  }
+
+  return next;
+}
+
 function setupDashboardDateTime() {
   const el = document.getElementById('dashboardDateTime');
   if (!el) return;
@@ -1400,6 +1530,8 @@ async function exportDashboardPdf() {
 
     addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
+    await addInspectionDonutsToFirstPage(doc, html2canvasLib, root, pageWidth);
+
     await addObservationListPages(doc, {
       reportTitle,
       pageWidth,
@@ -1416,28 +1548,7 @@ async function exportDashboardPdf() {
       'Requisition Dashboard (RT) - Table'
     ];
 
-    const combinedExportSections = [
-      'Vessel Dashboard',
-      'Steam Trap Dashboard',
-      'Pipeline Dashboard'
-    ];
-
-    for (const sectionTitle of combinedExportSections) {
-      const sectionEntry = targets.sections.find((entry) => entry.title === sectionTitle);
-      if (!sectionEntry?.table || !sectionEntry?.chart) continue;
-      await addTableAndChartAsLandscapePage(doc, html2canvasLib, {
-        tableElement: sectionEntry.table,
-        chartElement: sectionEntry.chart,
-        title: `${sectionTitle} - Table + Chart`,
-        reportTitle,
-        dateLabel,
-        timeLabel,
-        generatedAt
-      });
-    }
-
     for (const orderedTitle of orderedTables) {
-      if (combinedExportSections.some((sectionTitle) => orderedTitle.startsWith(sectionTitle))) continue;
       const target = targets.tables.find((entry) => entry.title === orderedTitle);
       if (!target) continue;
       await addElementAsLandscapePage(doc, html2canvasLib, {
@@ -1455,33 +1566,37 @@ async function exportDashboardPdf() {
         paginateTable(doc, {
           title: 'Requisition Dashboard (RT) - Detail',
           headers: [
+            'Date',
             'Job Description',
             'Unit',
             'Joint Size',
             'Number of Joints',
             'Number of Joints Completed',
-            'Remarks'
+            'Remarks',
+            'Result'
           ],
           rows: rtRequisitionDetailRows,
-          widths: computeAutoColumnWidths(
+          widths: rebalanceRtDetailWidths(computeAutoColumnWidths(
             doc,
             [
+              'Date',
               'Job Description',
               'Unit',
               'Joint Size',
               'Number of Joints',
               'Number of Joints Completed',
-              'Remarks'
+              'Remarks',
+              'Result'
             ],
             rtRequisitionDetailRows,
             pageWidth - 24,
             {
-              mainColumn: 0,
-              compactColumns: [2, 3, 4],
-              maxCompactWidth: 24,
-              minWidth: 14
+              mainColumn: 6,
+              compactColumns: [0, 2, 3, 4, 5, 7],
+              maxCompactWidth: 22,
+              minWidth: 12
             }
-          ),
+          )),
           startY: 30,
           pageWidth,
           pageHeight,
@@ -1492,7 +1607,10 @@ async function exportDashboardPdf() {
     }
 
     for (const target of targets.charts) {
-      if (combinedExportSections.some((sectionTitle) => target.title.startsWith(sectionTitle))) continue;
+      if (target.title.startsWith('Vessel Dashboard')) continue;
+      if (target.title.startsWith('Steam Trap Dashboard')) continue;
+      if (target.title.startsWith('Pipeline Dashboard')) continue;
+      if (target.title.startsWith('Requisition Dashboard (RT)')) continue;
       await addElementAsLandscapePage(doc, html2canvasLib, {
         element: target.element,
         title: target.title,
