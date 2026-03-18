@@ -1417,10 +1417,7 @@ function paginateTable(doc, opts) {
     rowMaxLines = 6,
     cellPaddingX = 1,
     rowLineHeight = 3.8,
-    rowPaddingY = 2.4,
-    titleFontSize = 11,
-    headerFontSize = 10,
-    rowFontSize = 10
+    rowPaddingY = 2.4
   } = opts;
 
   const leftMargin = Number.isFinite(margins.left) ? margins.left : 12;
@@ -1445,10 +1442,9 @@ function paginateTable(doc, opts) {
 
   const renderTableTitleAndHeader = () => {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(titleFontSize);
+    doc.setFontSize(11);
     doc.text(title, leftMargin, y);
     y += 6;
-    doc.setFontSize(headerFontSize);
     const headerHeight = addTableRow(doc, headers, safeWidths, y, true, {
       maxLines: headerMaxLines,
       startX: leftMargin,
@@ -1478,7 +1474,6 @@ function paginateTable(doc, opts) {
       renderTableTitleAndHeader();
     }
 
-    doc.setFontSize(rowFontSize);
     const renderedHeight = addTableRow(doc, rowConfig.values, safeWidths, y, false, {
       rowFillColor: rowConfig.rowFillColor,
       maxLines: rowMaxLines,
@@ -1522,7 +1517,7 @@ function rebalanceRtDetailWidths(widths = []) {
 function optimizeRtDetailWidths(widths = [], totalWidth = 0) {
   if (!Array.isArray(widths) || widths.length < 8 || !Number.isFinite(totalWidth) || totalWidth <= 0) return widths;
   const adjusted = [...widths];
-  const minWidths = [14, 44, 12, 12, 16, 22, 36, 20];
+  const minWidths = [12, 36, 10, 10, 13, 18, 28, 16];
 
   [0, 2, 3].forEach((idx) => {
     const cap = totalWidth * (idx === 0 ? 0.12 : 0.1);
@@ -1532,9 +1527,8 @@ function optimizeRtDetailWidths(widths = [], totalWidth = 0) {
   const currentTotal = adjusted.reduce((sum, width) => sum + width, 0);
   const diff = totalWidth - currentTotal;
   if (diff > 0) {
-    adjusted[1] += diff * 0.55;
-    adjusted[6] += diff * 0.35;
-    adjusted[7] += diff * 0.1;
+    adjusted[1] += diff * 0.62;
+    adjusted[6] += diff * 0.38;
   } else if (diff < 0) {
     let remaining = Math.abs(diff);
     [7, 5, 4, 1, 6].forEach((idx) => {
@@ -1646,10 +1640,10 @@ async function exportDashboardPdf() {
       if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
         const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
         const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
-        const rtLandscapePageWidth = 297;
-        const rtLandscapePageHeight = 210;
+        const rtPortraitPageWidth = 210;
+        const rtPortraitPageHeight = 297;
         const rtMargins = { top: 12, bottom: 12, left: 10, right: 10 };
-        const rtAvailableWidth = rtLandscapePageWidth - rtMargins.left - rtMargins.right;
+        const rtAvailableWidth = rtPortraitPageWidth - rtMargins.left - rtMargins.right;
         const rtDetailWidths = optimizeRtDetailWidths(
           rebalanceRtDetailWidths(computeAutoColumnWidths(
             doc,
@@ -1668,8 +1662,8 @@ async function exportDashboardPdf() {
             {
               mainColumn: 1,
               compactColumns: [0, 2, 3, 4, 5, 7],
-              maxCompactWidth: 28,
-              minWidth: 12
+              maxCompactWidth: 20,
+              minWidth: 10
             }
           )),
           rtAvailableWidth
@@ -1688,23 +1682,20 @@ async function exportDashboardPdf() {
           ],
           rows: rtRequisitionDetailRows,
           widths: rtDetailWidths,
-          startY: 26,
-          pageWidth: rtLandscapePageWidth,
-          pageHeight: rtLandscapePageHeight,
+          startY: 24,
+          pageWidth: rtPortraitPageWidth,
+          pageHeight: rtPortraitPageHeight,
           reportTitle,
           dateLabel,
           timeLabel,
           generatedAt,
-          orientation: 'landscape',
+          orientation: 'portrait',
           margins: rtMargins,
           headerMaxLines: 0,
           rowMaxLines: 0,
-          cellPaddingX: 1,
-          rowLineHeight: 4.2,
-          rowPaddingY: 4.2,
-          titleFontSize: 11,
-          headerFontSize: 11,
-          rowFontSize: 10.5
+          cellPaddingX: 0.8,
+          rowLineHeight: 3.4,
+          rowPaddingY: 2.2
         });
       }
     }
