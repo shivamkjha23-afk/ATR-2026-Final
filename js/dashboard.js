@@ -864,9 +864,9 @@ async function addObservationListPages(doc, options = {}) {
   } = options;
   const toTimestamp = (row = {}) => {
     const parsed = Date.parse(row.date_of_observation || row.observation_date || row.timestamp || '');
-    return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
   };
-  const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(a) - toTimestamp(b));
+  const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(b) - toTimestamp(a));
   const headers = ['Date of Observation', 'Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
   const widths = [27, 19, 19, 22, 60, 51, 16, 54];
   const startY = 34;
@@ -900,7 +900,7 @@ async function addObservationListPages(doc, options = {}) {
 
   const getRowLines = (row = {}) => {
     const values = [
-      String(row.date_of_observation || row.observation_date || row.timestamp || '-').slice(0, 10),
+      formatObservationDate(row),
       row.tag_number,
       row.unit,
       row.location,
@@ -1325,11 +1325,11 @@ function renderRequisitionRtDetailRows(rows = []) {
       const redA = isRejectedResult(a.result) ? 0 : 1;
       const redB = isRejectedResult(b.result) ? 0 : 1;
       if (redA !== redB) return redA - redB;
-      return toTimestamp(a.requisition_datetime || a.timestamp) - toTimestamp(b.requisition_datetime || b.timestamp);
+      return toTimestamp(b.requisition_datetime || b.timestamp) - toTimestamp(a.requisition_datetime || a.timestamp);
     })
     .map((row) => ({
       values: [
-        String(row.requisition_datetime || row.timestamp || '-').slice(0, 10),
+        formatDateDdMmYy(row.requisition_datetime || row.timestamp),
         row.job_description || '-',
         row.unit || '-',
         row.jointSize || 0,
@@ -1609,6 +1609,7 @@ async function exportDashboardPdf() {
       if (target.title.startsWith('Steam Trap Dashboard')) continue;
       if (target.title.startsWith('Pipeline Dashboard')) continue;
       if (target.title.startsWith('Requisition Dashboard (RT)')) continue;
+      if (target.title.startsWith('Observation Dashboard')) continue;
       await addElementAsLandscapePage(doc, html2canvasLib, {
         element: target.element,
         title: target.title,
