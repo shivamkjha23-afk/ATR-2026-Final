@@ -1252,22 +1252,33 @@ function writeKeyValueList(doc, items, y) {
   return y;
 }
 
-function getTableRowLines(doc, columns = [], widths = [], maxLines = 2) {
-  return columns.map((col, idx) => doc
-    .splitTextToSize(String(col ?? '-'), Math.max((widths[idx] || 0) - 2, 6))
-    .slice(0, maxLines));
+function getTableRowLines(doc, columns = [], widths = [], opts = {}) {
+  const maxLines = Number.isFinite(opts?.maxLines) ? opts.maxLines : 2;
+  const cellPaddingX = Number.isFinite(opts?.cellPaddingX) ? opts.cellPaddingX : 1;
+  return columns.map((col, idx) => {
+    const lines = doc.splitTextToSize(
+      String(col ?? '-'),
+      Math.max((widths[idx] || 0) - (cellPaddingX * 2), 6)
+    );
+    if (Number.isFinite(maxLines) && maxLines > 0) return lines.slice(0, maxLines);
+    return lines;
+  });
 }
 
-function getTableRowHeightFromLines(rowLines = []) {
+function getTableRowHeightFromLines(rowLines = [], opts = {}) {
+  const lineHeight = Number.isFinite(opts?.lineHeight) ? opts.lineHeight : 3.8;
+  const paddingY = Number.isFinite(opts?.paddingY) ? opts.paddingY : 2.4;
   const maxLines = rowLines.reduce((max, lines) => Math.max(max, lines.length || 1), 1);
-  return Math.max(7, (maxLines * 3.8) + 2.4);
+  return Math.max(7, (maxLines * lineHeight) + paddingY);
 }
 
 function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
-  const maxLines = opts?.maxLines || 2;
-  const rowLines = getTableRowLines(doc, columns, widths, maxLines);
-  const rowHeight = getTableRowHeightFromLines(rowLines);
-  let x = 12;
+  const maxLines = Number.isFinite(opts?.maxLines) ? opts.maxLines : 2;
+  const cellPaddingX = Number.isFinite(opts?.cellPaddingX) ? opts.cellPaddingX : 1;
+  const rowLines = getTableRowLines(doc, columns, widths, { maxLines, cellPaddingX });
+  const rowHeight = getTableRowHeightFromLines(rowLines, opts);
+  const startX = Number.isFinite(opts?.startX) ? opts.startX : 12;
+  let x = startX;
   const rowFillColor = opts?.rowFillColor;
   doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
   doc.setTextColor(15, 23, 42);
@@ -1278,7 +1289,7 @@ function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
     } else {
       doc.rect(x, y - 4.5, widths[idx], rowHeight);
     }
-    doc.text(lines, x + 1, y);
+    doc.text(lines, x + cellPaddingX, y);
     x += widths[idx];
   });
 
@@ -1397,25 +1408,50 @@ function paginateTable(doc, opts) {
     pageWidth,
     pageHeight,
     reportTitle,
-    dateLabel
+    dateLabel,
+    timeLabel = '',
+    generatedAt = '',
+    orientation = 'landscape',
+    margins = {},
+    headerMaxLines = 3,
+    rowMaxLines = 6,
+    cellPaddingX = 1,
+    rowLineHeight = 3.8,
+    rowPaddingY = 2.4
   } = opts;
 
-  const tableStartY = Number.isFinite(startY) ? startY : 24;
+  const leftMargin = Number.isFinite(margins.left) ? margins.left : 12;
+  const rightMargin = Number.isFinite(margins.right) ? margins.right : 12;
+  const topMargin = Number.isFinite(margins.top) ? margins.top : 12;
+  const bottomMargin = Number.isFinite(margins.bottom) ? margins.bottom : 12;
+  const tableStartY = Number.isFinite(startY) ? startY : (topMargin + 10);
   let y = tableStartY;
 
   const addPage = () => {
-    doc.addPage('a4', 'landscape');
-    addPdfPageHeader(doc, reportTitle, pageWidth);
-    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel);
+    doc.addPage('a4', orientation);
+    addPdfPageHeader(doc, reportTitle, pageWidth, generatedAt);
+    addPdfPageFooter(doc, pageWidth, pageHeight, dateLabel, timeLabel);
     y = tableStartY;
   };
+
+  const tableWidth = Math.max(0, pageWidth - leftMargin - rightMargin);
+  const currentWidth = widths.reduce((sum, value) => sum + value, 0);
+  const safeWidths = (tableWidth > 0 && currentWidth > 0)
+    ? widths.map((width) => width * (tableWidth / currentWidth))
+    : widths;
 
   const renderTableTitleAndHeader = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text(title, 12, y);
+    doc.text(title, leftMargin, y);
     y += 6;
-    const headerHeight = addTableRow(doc, headers, widths, y, true, { maxLines: 3 });
+    const headerHeight = addTableRow(doc, headers, safeWidths, y, true, {
+      maxLines: headerMaxLines,
+      startX: leftMargin,
+      cellPaddingX,
+      lineHeight: rowLineHeight,
+      paddingY: rowPaddingY
+    });
     y += headerHeight + 2;
   };
 
@@ -1427,17 +1463,24 @@ function paginateTable(doc, opts) {
       ? { values: row, rowFillColor: null }
       : { values: row?.values || [], rowFillColor: row?.rowFillColor || null };
 
-    const rowLines = getTableRowLines(doc, rowConfig.values, widths, 6);
-    const rowHeight = getTableRowHeightFromLines(rowLines);
+    const rowLines = getTableRowLines(doc, rowConfig.values, safeWidths, {
+      maxLines: rowMaxLines,
+      cellPaddingX
+    });
+    const rowHeight = getTableRowHeightFromLines(rowLines, { lineHeight: rowLineHeight, paddingY: rowPaddingY });
 
-    if (y + rowHeight > pageHeight - 12) {
+    if (y + rowHeight > pageHeight - bottomMargin) {
       addPage();
       renderTableTitleAndHeader();
     }
 
-    const renderedHeight = addTableRow(doc, rowConfig.values, widths, y, false, {
+    const renderedHeight = addTableRow(doc, rowConfig.values, safeWidths, y, false, {
       rowFillColor: rowConfig.rowFillColor,
-      maxLines: 6
+      maxLines: rowMaxLines,
+      startX: leftMargin,
+      cellPaddingX,
+      lineHeight: rowLineHeight,
+      paddingY: rowPaddingY
     });
     y += renderedHeight + 2;
   });
@@ -1469,6 +1512,41 @@ function rebalanceRtDetailWidths(widths = []) {
   }
 
   return next;
+}
+
+function optimizeRtDetailWidths(widths = [], totalWidth = 0) {
+  if (!Array.isArray(widths) || widths.length < 8 || !Number.isFinite(totalWidth) || totalWidth <= 0) return widths;
+  const adjusted = [...widths];
+  const minWidths = [12, 36, 10, 10, 13, 18, 28, 16];
+
+  [0, 2, 3].forEach((idx) => {
+    const cap = totalWidth * (idx === 0 ? 0.12 : 0.1);
+    adjusted[idx] = Math.max(minWidths[idx], Math.min(adjusted[idx], cap));
+  });
+
+  const currentTotal = adjusted.reduce((sum, width) => sum + width, 0);
+  const diff = totalWidth - currentTotal;
+  if (diff > 0) {
+    adjusted[1] += diff * 0.62;
+    adjusted[6] += diff * 0.38;
+  } else if (diff < 0) {
+    let remaining = Math.abs(diff);
+    [7, 5, 4, 1, 6].forEach((idx) => {
+      if (remaining <= 0) return;
+      const shrinkable = Math.max(0, adjusted[idx] - minWidths[idx]);
+      const shrink = Math.min(shrinkable, remaining);
+      adjusted[idx] -= shrink;
+      remaining -= shrink;
+    });
+  }
+
+  const normalizedTotal = adjusted.reduce((sum, width) => sum + width, 0);
+  if (normalizedTotal <= 0) return adjusted;
+  const scale = totalWidth / normalizedTotal;
+  const scaled = adjusted.map((width, idx) => Math.max(minWidths[idx], width * scale));
+  const scaledTotal = scaled.reduce((sum, width) => sum + width, 0);
+  if (scaledTotal !== totalWidth) scaled[6] += (totalWidth - scaledTotal);
+  return scaled;
 }
 
 function setupDashboardDateTime() {
@@ -1562,6 +1640,34 @@ async function exportDashboardPdf() {
       if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
         const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
         const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
+        const rtPortraitPageWidth = 210;
+        const rtPortraitPageHeight = 297;
+        const rtMargins = { top: 12, bottom: 12, left: 10, right: 10 };
+        const rtAvailableWidth = rtPortraitPageWidth - rtMargins.left - rtMargins.right;
+        const rtDetailWidths = optimizeRtDetailWidths(
+          rebalanceRtDetailWidths(computeAutoColumnWidths(
+            doc,
+            [
+              'Date',
+              'Job Description',
+              'Unit',
+              'Joint Size',
+              'Number of Joints',
+              'Number of Joints Completed',
+              'Remarks',
+              'Result'
+            ],
+            rtRequisitionDetailRows,
+            rtAvailableWidth,
+            {
+              mainColumn: 1,
+              compactColumns: [0, 2, 3, 4, 5, 7],
+              maxCompactWidth: 20,
+              minWidth: 10
+            }
+          )),
+          rtAvailableWidth
+        );
         paginateTable(doc, {
           title: 'Requisition Dashboard (RT) - Detail',
           headers: [
@@ -1575,32 +1681,21 @@ async function exportDashboardPdf() {
             'Result'
           ],
           rows: rtRequisitionDetailRows,
-          widths: rebalanceRtDetailWidths(computeAutoColumnWidths(
-            doc,
-            [
-              'Date',
-              'Job Description',
-              'Unit',
-              'Joint Size',
-              'Number of Joints',
-              'Number of Joints Completed',
-              'Remarks',
-              'Result'
-            ],
-            rtRequisitionDetailRows,
-            pageWidth - 24,
-            {
-              mainColumn: 1,
-              compactColumns: [0, 3, 4, 5],
-              maxCompactWidth: 24,
-              minWidth: 14
-            }
-          )),
-          startY: 30,
-          pageWidth,
-          pageHeight,
+          widths: rtDetailWidths,
+          startY: 24,
+          pageWidth: rtPortraitPageWidth,
+          pageHeight: rtPortraitPageHeight,
           reportTitle,
-          dateLabel
+          dateLabel,
+          timeLabel,
+          generatedAt,
+          orientation: 'portrait',
+          margins: rtMargins,
+          headerMaxLines: 0,
+          rowMaxLines: 0,
+          cellPaddingX: 0.8,
+          rowLineHeight: 3.4,
+          rowPaddingY: 2.2
         });
       }
     }
