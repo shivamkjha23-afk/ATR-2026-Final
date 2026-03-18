@@ -679,7 +679,7 @@ function collectDashboardSummaryData() {
       metrics: [
         ['Planned', pipelineSummary.planned || 0],
         ['Completed', pipelineSummary.completed || 0],
-        ['Progress %', `${pipelineSummary.completed/pipelineSummary.planned*100 || 0}%`]
+        ['Progress %', `${((pipelineSummary.completed / pipelineSummary.planned) * 100 || 0).toFixed(2)}%`]
         
       ]
     },
@@ -688,7 +688,7 @@ function collectDashboardSummaryData() {
       metrics: [
         ['Planned', steamTrapSummary.planned || 0],
         ['Completed', steamTrapSummary.completed || 0],
-        ['Progress %', `${steamTrapSummary.completed/steamTrapSummary.planned*100 || 0}%`]
+        ['Progress %', `${((steamTrapSummary.completed / steamTrapSummary.planned) * 100 || 0).toFixed(2)}%`]
       ]
     },
     {
@@ -1311,8 +1311,8 @@ function renderRequisitionRtDetailRows(rows = []) {
 
   const getResultFillColor = (resultValue) => {
     const normalizedResult = String(resultValue || '').trim().toLowerCase();
-    if (normalizedResult === 'defect observed (cut)') return [255, 242, 242];
-    if (normalizedResult === 'acceptable') return [242, 255, 242];
+    if (normalizedResult === 'defect observed (cut)') return [255, 230, 230];
+    if (normalizedResult === 'acceptable') return [230, 255, 230];
     return [255, 252, 232];
   };
 
