@@ -1281,6 +1281,16 @@ function addTableRow(doc, columns, widths, y, isHeader = false, opts = {}) {
   return rowHeight;
 }
 
+function formatDateDdMmYy(value) {
+  const parsed = new Date(value || '');
+  if (Number.isNaN(parsed.getTime())) return '-';
+
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const yy = String(parsed.getFullYear()).slice(-2);
+  return `${dd}-${mm}-${yy}`;
+}
+
 function renderInspectionSummaryRows(rows = []) {
   const grouped = groupByUnit(rows);
   return Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map((unit) => {
@@ -1431,6 +1441,32 @@ function paginateTable(doc, opts) {
   return y + 4;
 }
 
+function rebalanceRtDetailWidths(widths = []) {
+  if (!Array.isArray(widths) || widths.length < 8) return widths;
+
+  const next = [...widths];
+  const remarksIdx = 6;
+  const resultIdx = 7;
+  const remarksMin = 38;
+  const resultMin = 24;
+
+  if (next[remarksIdx] < remarksMin) {
+    let needed = remarksMin - next[remarksIdx];
+    const donors = [1, 4, 5, 7, 3, 2];
+    donors.forEach((idx) => {
+      if (needed <= 0) return;
+      const floor = idx === resultIdx ? resultMin : 14;
+      const available = Math.max(0, next[idx] - floor);
+      const shift = Math.min(available, needed);
+      next[idx] -= shift;
+      next[remarksIdx] += shift;
+      needed -= shift;
+    });
+  }
+
+  return next;
+}
+
 function setupDashboardDateTime() {
   const el = document.getElementById('dashboardDateTime');
   if (!el) return;
@@ -1487,6 +1523,8 @@ async function exportDashboardPdf() {
 
     addDashboardSummaryCardsPage(doc, reportTitle, pageWidth, pageHeight, dateLabel, timeLabel, generatedAt);
 
+    await addInspectionDonutsToFirstPage(doc, html2canvasLib, root, pageWidth);
+
     await addObservationListPages(doc, {
       reportTitle,
       pageWidth,
@@ -1533,7 +1571,7 @@ async function exportDashboardPdf() {
             'Result'
           ],
           rows: rtRequisitionDetailRows,
-          widths: computeAutoColumnWidths(
+          widths: rebalanceRtDetailWidths(computeAutoColumnWidths(
             doc,
             [
               'Date',
@@ -1553,7 +1591,7 @@ async function exportDashboardPdf() {
               maxCompactWidth: 24,
               minWidth: 14
             }
-          ),
+          )),
           startY: 30,
           pageWidth,
           pageHeight,
