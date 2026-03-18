@@ -894,6 +894,9 @@ async function addObservationListPages(doc, options = {}) {
   };
 
   const normalizeValue = (value) => String(value || '-');
+  const formatObservationDate = (row = {}) => formatDateDdMmYy(
+    row.date_of_observation || row.observation_date || row.timestamp
+  );
 
   const getRowLines = (row = {}) => {
     const values = [
