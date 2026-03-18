@@ -678,16 +678,17 @@ function collectDashboardSummaryData() {
       title: 'Pipeline',
       metrics: [
         ['Planned', pipelineSummary.planned || 0],
-        ['In Progress', pipelineSummary.inProgress || 0],
-        ['Completed', pipelineSummary.completed || 0]
+        ['Completed', pipelineSummary.completed || 0],
+        ['Progress %', `${pipelineSummary.completed/pipelineSummary.planned*100 || 0}%`]
+        
       ]
     },
     {
       title: 'Steam Trap',
       metrics: [
         ['Planned', steamTrapSummary.planned || 0],
-        ['In Progress', steamTrapSummary.inProgress || 0],
-        ['Completed', steamTrapSummary.completed || 0]
+        ['Completed', steamTrapSummary.completed || 0],
+        ['Progress %', `${steamTrapSummary.completed/steamTrapSummary.planned*100 || 0}%`]
       ]
     },
     {
@@ -810,7 +811,7 @@ async function addInspectionDonutsToFirstPage(doc, html2canvas, root, pageWidth)
     doc.roundedRect(x, blockY, blockWidth, blockHeight, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11.5);
+    doc.setFontSize(14.5);
     doc.setTextColor(15, 23, 42);
     doc.text(entry.title, x + (blockWidth / 2), blockY + 6, { align: 'center' });
 
@@ -1544,7 +1545,7 @@ async function exportDashboardPdf() {
       'Requisition Dashboard (RT) - Table'
     ];
 
-    await addInspectionDonutsToFirstPage(doc, html2canvasLib, root, pageWidth);
+  
 
     for (const orderedTitle of orderedTables) {
       const target = targets.tables.find((entry) => entry.title === orderedTitle);
