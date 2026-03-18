@@ -770,8 +770,6 @@ function getInspectionCompletionPercent(summary = {}) {
 }
 
 async function addInspectionDonutsToFirstPage(doc, html2canvas, root, pageWidth) {
-  if (typeof doc.setPage === 'function') doc.setPage(1);
-
   const sectionTitles = ['Vessel Dashboard', 'Steam Trap Dashboard', 'Pipeline Dashboard'];
   const cards = sectionTitles
     .map((sectionTitle) => {
@@ -789,15 +787,8 @@ async function addInspectionDonutsToFirstPage(doc, html2canvas, root, pageWidth)
 
   if (!cards.length) return;
 
-  const cardStartY = 40;
-  const cardHeight = 42;
-  const rowGap = 8;
-  const cardRows = Math.ceil(collectDashboardSummaryData().length / 3);
-  const cardsBottomY = cardStartY + ((cardRows - 1) * (cardHeight + rowGap)) + cardHeight;
-
-  const blockY = cardsBottomY + 8;
-  const availableHeight = 196 - blockY;
-  const blockHeight = Math.max(48, Math.min(64, availableHeight));
+  const blockY = 140;
+  const blockHeight = 58;
   const gap = 6;
   const marginX = 12;
   const blockWidth = (pageWidth - (marginX * 2) - (gap * (cards.length - 1))) / cards.length;
@@ -823,10 +814,10 @@ async function addInspectionDonutsToFirstPage(doc, html2canvas, root, pageWidth)
     doc.setTextColor(15, 23, 42);
     doc.text(entry.title, x + (blockWidth / 2), blockY + 6, { align: 'center' });
 
-    const chartPaddingX = 2;
-    const chartY = blockY + 7;
+    const chartPaddingX = 3;
+    const chartY = blockY + 8;
     const chartWidth = blockWidth - (chartPaddingX * 2);
-    const chartHeight = blockHeight - 10;
+    const chartHeight = blockHeight - 11;
     const fit = fitImageInBox(chartCanvas, chartWidth, chartHeight);
     const imageX = x + ((blockWidth - fit.width) / 2);
     const imageY = chartY + ((chartHeight - fit.height) / 2);
@@ -835,7 +826,7 @@ async function addInspectionDonutsToFirstPage(doc, html2canvas, root, pageWidth)
     doc.setFillColor(255, 255, 255);
     doc.circle(x + (blockWidth / 2), blockY + (blockHeight / 2) + 4, 5.6, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
+    doc.setFontSize(9.5);
     doc.setTextColor(15, 23, 42);
     doc.text(`${percentByTitle[entry.title] || 0}%`, x + (blockWidth / 2), blockY + (blockHeight / 2) + 5, { align: 'center' });
   }
@@ -875,7 +866,7 @@ async function addObservationListPages(doc, options = {}) {
     const parsed = Date.parse(row.date_of_observation || row.observation_date || row.timestamp || '');
     return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
   };
-  const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(b) - toTimestamp(a));
+  const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(a) - toTimestamp(b));
   const headers = ['Date of Observation', 'Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
   const widths = [27, 19, 19, 22, 60, 51, 16, 54];
   const startY = 34;
@@ -909,7 +900,7 @@ async function addObservationListPages(doc, options = {}) {
 
   const getRowLines = (row = {}) => {
     const values = [
-      formatObservationDate(row),
+      String(row.date_of_observation || row.observation_date || row.timestamp || '-').slice(0, 10),
       row.tag_number,
       row.unit,
       row.location,
@@ -1338,7 +1329,7 @@ function renderRequisitionRtDetailRows(rows = []) {
     })
     .map((row) => ({
       values: [
-        formatDateDdMmYy(row.requisition_datetime || row.timestamp),
+        String(row.requisition_datetime || row.timestamp || '-').slice(0, 10),
         row.job_description || '-',
         row.unit || '-',
         row.jointSize || 0,
@@ -1553,6 +1544,8 @@ async function exportDashboardPdf() {
       'Requisition Dashboard (RT) - Table'
     ];
 
+    await addInspectionDonutsToFirstPage(doc, html2canvasLib, root, pageWidth);
+
     for (const orderedTitle of orderedTables) {
       const target = targets.tables.find((entry) => entry.title === orderedTitle);
       if (!target) continue;
@@ -1596,10 +1589,10 @@ async function exportDashboardPdf() {
             rtRequisitionDetailRows,
             pageWidth - 24,
             {
-              mainColumn: 6,
-              compactColumns: [0, 2, 3, 4, 5, 7],
-              maxCompactWidth: 22,
-              minWidth: 12
+              mainColumn: 1,
+              compactColumns: [0, 3, 4, 5],
+              maxCompactWidth: 24,
+              minWidth: 14
             }
           )),
           startY: 30,
