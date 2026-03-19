@@ -1746,7 +1746,7 @@ async function exportDashboardPdf() {
           rowMaxLines: 0,
           cellPaddingX: 0.8,
           rowPaddingY: 2.2,
-          tableFontSize: 7.4
+          tableFontSize: 9
         });
       }
     }
