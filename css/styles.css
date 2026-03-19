@@ -175,6 +175,7 @@ th { color: var(--muted); }
 }
 .vessel-progress-table tbody tr:nth-child(odd) td { background: rgba(148, 163, 184, 0.08); }
 .vessel-progress-table tbody tr:nth-child(even) td { background: rgba(148, 163, 184, 0.14); }
+.vessel-progress-table tbody tr.completion-100-row td { background: #dcfce7 !important; }
 .vessel-progress-table td:first-child,
 .vessel-progress-table tfoot td:first-child { text-align: left; font-weight: 600; }
 .vessel-progress-table tfoot td {
@@ -192,6 +193,9 @@ th { color: var(--muted); }
 .inspection-dashboard-section .table-wrap td {
   font-size: 1rem;
   padding: 0.68rem;
+}
+.inspection-dashboard-section .table-wrap tbody tr.completion-100-row td {
+  background: #dcfce7 !important;
 }
 
 .inspection-dashboard-section .vessel-progress-table thead tr:first-child th {

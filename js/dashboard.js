@@ -213,10 +213,22 @@ function renderVesselProgressTable(rows = []) {
   const grouped = groupByUnit(rows);
   const units = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
+  const formatPercent = (completed, planned) => {
+    const plannedCount = Number(planned || 0);
+    const completedCount = Number(completed || 0);
+    if (!plannedCount) return '0.00%';
+    return `${((completedCount / plannedCount) * 100).toFixed(2)}%`;
+  };
+
   const metricsByUnit = units.map((unit) => {
     const unitRows = grouped[unit];
     const plannedRows = unitRows.filter((r) => normalizeInspectionType(r.inspection_type) === 'planned');
     const opportunityRows = unitRows.filter((r) => normalizeInspectionType(r.inspection_type) === 'opportunity based');
+
+    const completionPercent = formatPercent(
+      plannedRows.filter(isCompletedInspection).length,
+      plannedRows.length
+    );
 
     return {
       unit,
@@ -226,9 +238,11 @@ function renderVesselProgressTable(rows = []) {
       dayOpportunityCompleted: opportunityRows.filter((r) => inspectionCompletionDateISO(r) === today && isCompletedInspection(r)).length,
       cumulativePlannedCompleted: plannedRows.filter(isCompletedInspection).length,
       cumulativeOpportunityCompleted: opportunityRows.filter(isCompletedInspection).length,
-      inProgress: unitRows.filter(isInProgressInspection).length
+      inProgress: unitRows.filter(isInProgressInspection).length,
+      completionPercent,
+      isComplete: completionPercent === '100.00%'
     };
-  });
+  }).sort((a, b) => Number.parseFloat(b.completionPercent) - Number.parseFloat(a.completionPercent));
 
   const totals = metricsByUnit.reduce((acc, row) => {
     acc.planned += row.planned;
@@ -257,6 +271,7 @@ function renderVesselProgressTable(rows = []) {
             <th colspan="3">Planned</th>
             <th colspan="2">Day's Progress</th>
             <th colspan="3">Cumulative Progress</th>
+            <th rowspan="2">Completion %</th>
           </tr>
           <tr>
             <th>Plant</th>
@@ -271,7 +286,7 @@ function renderVesselProgressTable(rows = []) {
         </thead>
         <tbody>
           ${metricsByUnit.map((row) => `
-            <tr>
+            <tr class="${row.isComplete ? 'completion-100-row' : ''}">
               <td>${row.unit}</td>
               <td>${row.planned || ''}</td>
               <td>${row.opportunity || ''}</td>
@@ -280,8 +295,9 @@ function renderVesselProgressTable(rows = []) {
               <td>${row.cumulativePlannedCompleted || ''}</td>
               <td>${row.cumulativeOpportunityCompleted || ''}</td>
               <td>${row.inProgress || ''}</td>
+              <td>${row.completionPercent}</td>
             </tr>
-          `).join('') || '<tr><td colspan="8">No records</td></tr>'}
+          `).join('') || '<tr><td colspan="9">No records</td></tr>'}
         </tbody>
         <tfoot>
           <tr>
@@ -293,6 +309,7 @@ function renderVesselProgressTable(rows = []) {
             <td>${totals.cumulativePlannedCompleted || ''}</td>
             <td>${totals.cumulativeOpportunityCompleted || ''}</td>
             <td>${totals.inProgress || ''}</td>
+            <td>${formatPercent(totals.cumulativePlannedCompleted, totals.planned)}</td>
           </tr>
         </tfoot>
       </table>
@@ -350,13 +367,20 @@ function renderSummaryCards(cards = []) {
   return `<section class="cards-grid">${cards.map((c) => `<article class="card"><h3>${c.label}</h3><p>${c.value}</p></article>`).join('')}</section>`;
 }
 
-function renderUnitTable(headers, rows) {
+function renderUnitTable(headers, rows, options = {}) {
+  const highlight100ColumnIndex = Number.isInteger(options.highlight100ColumnIndex)
+    ? options.highlight100ColumnIndex
+    : -1;
   return `
     <div class="table-wrap">
       <table>
         <thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
         <tbody>
-          ${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="99">No records</td></tr>'}
+          ${rows.map((r) => {
+    const completionValue = highlight100ColumnIndex >= 0 ? String(r[highlight100ColumnIndex] || '') : '';
+    const isComplete = Number.parseFloat(completionValue) === 100;
+    return `<tr class="${isComplete ? 'completion-100-row' : ''}">${r.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+  }).join('') || '<tr><td colspan="99">No records</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -400,13 +424,21 @@ function sectionInspection(title, type, chartId, options = {}) {
   const grouped = groupByUnit(source);
   const units = Object.keys(grouped);
 
+  const formatPercent = (completed, planned) => {
+    const plannedCount = Number(planned || 0);
+    const completedCount = Number(completed || 0);
+    if (!plannedCount) return '0.00%';
+    return `${((completedCount / plannedCount) * 100).toFixed(2)}%`;
+  };
+
   const tableRows = units.map((unit) => {
     const unitRows = grouped[unit];
     const unitSummary = computeSummary(unitRows, { mode: 'inspection' });
+    const completionPercent = formatPercent(unitSummary.completed, unitSummary.planned);
     return includeOpportunity
-      ? [unit, unitSummary.planned, unitSummary.opportunity, unitSummary.todayCompleted, unitSummary.completed]
-      : [unit, unitSummary.planned, unitSummary.completed, unitSummary.todayCompleted];
-  });
+      ? [unit, unitSummary.planned, unitSummary.opportunity, unitSummary.todayCompleted, unitSummary.completed, completionPercent]
+      : [unit, unitSummary.planned, unitSummary.completed, unitSummary.todayCompleted, completionPercent];
+  }).sort((a, b) => Number.parseFloat(b[b.length - 1]) - Number.parseFloat(a[a.length - 1]));
 
   const cards = [
     { label: 'Total Planned', value: summary.planned },
@@ -430,8 +462,8 @@ function sectionInspection(title, type, chartId, options = {}) {
     : '';
 
   const tableHeaders = includeOpportunity
-    ? ['Unit', 'Planned', 'Opportunity Based', 'Completed Today', 'Total Completed']
-    : ['Unit', 'Total Planned', 'Total Completed', `Today\'s Completed`];
+    ? ['Unit', 'Planned', 'Opportunity Based', 'Completed Today', 'Total Completed', 'Completion %']
+    : ['Unit', 'Total Planned', 'Total Completed', `Today\'s Completed`, 'Completion %'];
 
   const sectionHtml = `
     <section class="table-card inspection-dashboard-section">
@@ -439,7 +471,9 @@ function sectionInspection(title, type, chartId, options = {}) {
       ${filterHtml}
       ${statusFilterHtml}
       ${renderSummaryCards(cards)}
-      ${type === 'Vessel' && includeOpportunity ? renderVesselProgressTable(source) : renderUnitTable(tableHeaders, tableRows)}
+      ${type === 'Vessel' && includeOpportunity
+    ? renderVesselProgressTable(source)
+    : renderUnitTable(tableHeaders, tableRows, { highlight100ColumnIndex: tableHeaders.length - 1 })}
       <article class="chart-card"><canvas id="${chartId}"></canvas></article>
     </section>
   `;
@@ -1201,6 +1235,11 @@ function styleExportTables(container) {
     cell.style.background = '#f8fafc';
   });
 
+  const completeRows = Array.from(container.querySelectorAll('tbody tr.completion-100-row td'));
+  completeRows.forEach((cell) => {
+    cell.style.background = '#dcfce7';
+  });
+
   const totalCells = Array.from(container.querySelectorAll('tfoot td'));
   totalCells.forEach((cell) => {
     cell.style.background = '#e2e8f0';
@@ -1255,9 +1294,11 @@ function writeKeyValueList(doc, items, y) {
 function getTableRowLines(doc, columns = [], widths = [], opts = {}) {
   const maxLines = Number.isFinite(opts?.maxLines) ? opts.maxLines : 2;
   const cellPaddingX = Number.isFinite(opts?.cellPaddingX) ? opts.cellPaddingX : 1;
+  const wrapLongWords = (value) => String(value ?? '').replace(/(\S{18})(?=\S)/g, '$1 ');
+
   return columns.map((col, idx) => {
     const lines = doc.splitTextToSize(
-      String(col ?? '-'),
+      wrapLongWords(String(col ?? '-')),
       Math.max((widths[idx] || 0) - (cellPaddingX * 2), 6)
     );
     if (Number.isFinite(maxLines) && maxLines > 0) return lines.slice(0, maxLines);
@@ -1641,10 +1682,10 @@ async function exportDashboardPdf() {
       if (orderedTitle === 'Requisition Dashboard (RT) - Table') {
         const rtRequisitionRows = getCollection('requisitions').filter((row) => (row.type || row.module_type) === 'RT');
         const rtRequisitionDetailRows = renderRequisitionRtDetailRows(rtRequisitionRows);
-        const rtPortraitPageWidth = 210;
-        const rtPortraitPageHeight = 297;
+        const rtLandscapePageWidth = 297;
+        const rtLandscapePageHeight = 210;
         const rtMargins = { top: 12, bottom: 12, left: 10, right: 10 };
-        const rtAvailableWidth = rtPortraitPageWidth - rtMargins.left - rtMargins.right;
+        const rtAvailableWidth = rtLandscapePageWidth - rtMargins.left - rtMargins.right;
         const rtDetailWidths = optimizeRtDetailWidths(
           rebalanceRtDetailWidths(computeAutoColumnWidths(
             doc,
@@ -1684,13 +1725,13 @@ async function exportDashboardPdf() {
           rows: rtRequisitionDetailRows,
           widths: rtDetailWidths,
           startY: 24,
-          pageWidth: rtPortraitPageWidth,
-          pageHeight: rtPortraitPageHeight,
+          pageWidth: rtLandscapePageWidth,
+          pageHeight: rtLandscapePageHeight,
           reportTitle,
           dateLabel,
           timeLabel,
           generatedAt,
-          orientation: 'portrait',
+          orientation: 'landscape',
           margins: rtMargins,
           headerMaxLines: 0,
           rowMaxLines: 0,
