@@ -1458,8 +1458,9 @@ function paginateTable(doc, opts) {
     headerMaxLines = 3,
     rowMaxLines = 6,
     cellPaddingX = 1,
-    rowLineHeight = 3.8,
-    rowPaddingY = 2.4
+    rowLineHeight,
+    rowPaddingY = 2.4,
+    tableFontSize = 9
   } = opts;
 
   const leftMargin = Number.isFinite(margins.left) ? margins.left : 12;
@@ -1481,17 +1482,21 @@ function paginateTable(doc, opts) {
   const safeWidths = (tableWidth > 0 && currentWidth > 0)
     ? widths.map((width) => width * (tableWidth / currentWidth))
     : widths;
+  const computedLineHeight = Number.isFinite(rowLineHeight)
+    ? rowLineHeight
+    : Math.max(3.6, tableFontSize * 0.42);
 
   const renderTableTitleAndHeader = () => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(title, leftMargin, y);
     y += 6;
+    doc.setFontSize(tableFontSize);
     const headerHeight = addTableRow(doc, headers, safeWidths, y, true, {
       maxLines: headerMaxLines,
       startX: leftMargin,
       cellPaddingX,
-      lineHeight: rowLineHeight,
+      lineHeight: computedLineHeight,
       paddingY: rowPaddingY
     });
     y += headerHeight + 2;
@@ -1509,7 +1514,7 @@ function paginateTable(doc, opts) {
       maxLines: rowMaxLines,
       cellPaddingX
     });
-    const rowHeight = getTableRowHeightFromLines(rowLines, { lineHeight: rowLineHeight, paddingY: rowPaddingY });
+    const rowHeight = getTableRowHeightFromLines(rowLines, { lineHeight: computedLineHeight, paddingY: rowPaddingY });
 
     if (y + rowHeight > pageHeight - bottomMargin) {
       addPage();
@@ -1521,7 +1526,7 @@ function paginateTable(doc, opts) {
       maxLines: rowMaxLines,
       startX: leftMargin,
       cellPaddingX,
-      lineHeight: rowLineHeight,
+      lineHeight: computedLineHeight,
       paddingY: rowPaddingY
     });
     y += renderedHeight + 2;
@@ -1736,8 +1741,8 @@ async function exportDashboardPdf() {
           headerMaxLines: 0,
           rowMaxLines: 0,
           cellPaddingX: 0.8,
-          rowLineHeight: 3.4,
-          rowPaddingY: 2.2
+          rowPaddingY: 2.2,
+          tableFontSize: 8.5
         });
       }
     }
