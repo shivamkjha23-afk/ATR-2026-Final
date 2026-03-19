@@ -1294,7 +1294,11 @@ function writeKeyValueList(doc, items, y) {
 function getTableRowLines(doc, columns = [], widths = [], opts = {}) {
   const maxLines = Number.isFinite(opts?.maxLines) ? opts.maxLines : 2;
   const cellPaddingX = Number.isFinite(opts?.cellPaddingX) ? opts.cellPaddingX : 1;
-  const wrapLongWords = (value) => String(value ?? '').replace(/(\S{18})(?=\S)/g, '$1 ');
+  const normalizeCellText = (value) => String(value ?? '')
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const wrapLongWords = (value) => normalizeCellText(value).replace(/(\S{16})(?=\S)/g, '$1 ');
 
   return columns.map((col, idx) => {
     const lines = doc.splitTextToSize(
@@ -1742,7 +1746,7 @@ async function exportDashboardPdf() {
           rowMaxLines: 0,
           cellPaddingX: 0.8,
           rowPaddingY: 2.2,
-          tableFontSize: 8.5
+          tableFontSize: 7.4
         });
       }
     }
