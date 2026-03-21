@@ -850,7 +850,7 @@ async function filesToPaths(fileList, observationId, tagNo) {
 }
 
 function statusClass(status) {
-  if (status === 'Not Started') return 'status-red';
+  if (status === 'Action to be taken') return 'status-red';
   if (status === 'In Progress') return 'status-yellow';
   if (status === 'Completed') return 'status-green';
   return '';
@@ -914,7 +914,7 @@ function setupObservationPage() {
         <td>${r.tag_number}</td><td>${r.unit}</td><td>${r.location}</td>
         <td>${r.observation}</td><td>${r.recommendation}</td>
         <td><select class="obs-status ${statusClass(r.status)}" data-id="${r.id}">
-          ${['Not Started', 'In Progress', 'Completed'].map((s) => `<option ${r.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+          ${['Action to be taken', 'In Progress', 'Completed'].map((s) => `<option ${r.status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select></td>
         <td>${(r.images || []).map((p) => {
           const imageUrl = getDisplayImageUrl(p);
@@ -941,7 +941,7 @@ function setupObservationPage() {
         document.getElementById('obsLocation').value = row.location || '';
         document.getElementById('obsObservation').value = row.observation || '';
         document.getElementById('obsRecommendation').value = row.recommendation || '';
-        document.getElementById('obsStatus').value = row.status || 'Not Started';
+        document.getElementById('obsStatus').value = row.status || 'Action to be taken';
         preview.innerHTML = editImagePaths.map((p) => {
           const imageUrl = getDisplayImageUrl(p);
           if (!imageUrl) return '';
