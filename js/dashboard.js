@@ -271,7 +271,7 @@ function renderVesselProgressTable(rows = []) {
             <th colspan="3">Planned</th>
             <th colspan="2">Day's Progress</th>
             <th colspan="3">Cumulative Progress</th>
-            <th rowspan="2">Completion %</th>
+            <th rowspan="2">Planned Completion %</th>
           </tr>
           <tr>
             <th>Plant</th>
