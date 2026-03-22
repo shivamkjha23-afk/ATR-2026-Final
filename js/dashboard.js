@@ -902,8 +902,8 @@ async function addObservationListPages(doc, options = {}) {
     return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
   };
   const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(b) - toTimestamp(a));
-  const headers = ['Date of Observation', 'Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
-  const widths = [27, 19, 19, 22, 60, 51, 16, 54];
+  const headers = ['S.No', 'Date of Observation', 'Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
+  const widths = [12, 24, 16, 16, 18, 56, 46, 24, 46];
   const startY = 34;
   const bottomLimit = pageHeight - 14;
 
@@ -929,12 +929,29 @@ async function addObservationListPages(doc, options = {}) {
   };
 
   const normalizeValue = (value) => String(value || '-');
+  const getStatusStyle = (status = '') => {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'completed') {
+      return {
+        fill: [34, 197, 94],
+        text: [255, 255, 255]
+      };
+    }
+    if (normalized === 'in progress' || normalized === 'action to be taken') {
+      return {
+        fill: [250, 204, 21],
+        text: [15, 23, 42]
+      };
+    }
+    return null;
+  };
   const formatObservationDate = (row = {}) => formatDateDdMmYy(
     row.date_of_observation || row.observation_date || row.timestamp
   );
 
-  const getRowLines = (row = {}) => {
+  const getRowLines = (row = {}, rowIndex = 0) => {
     const values = [
+      rowIndex + 1,
       formatObservationDate(row),
       row.tag_number,
       row.unit,
@@ -956,8 +973,9 @@ async function addObservationListPages(doc, options = {}) {
     return;
   }
 
-  for (const row of rows) {
-    const lines = getRowLines(row);
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex];
+    const lines = getRowLines(row, rowIndex);
     const hasImage = Array.isArray(row.images) && row.images.length > 0;
     const lineCount = Math.max(1, ...lines.map((line) => line.length));
     const textRowHeight = Math.max(18, (lineCount * 5.6) + 4);
@@ -973,8 +991,19 @@ async function addObservationListPages(doc, options = {}) {
     let x = 10;
     for (let idx = 0; idx < lines.length; idx += 1) {
       const cellLines = lines[idx];
-      doc.rect(x, y - 5, widths[idx], rowHeight);
-      if (idx === 7) {
+      const isStatusColumn = idx === 7;
+      if (isStatusColumn) {
+        const style = getStatusStyle(row.status);
+        if (style) {
+          doc.setFillColor(...style.fill);
+          doc.rect(x, y - 5, widths[idx], rowHeight, 'FD');
+        } else {
+          doc.rect(x, y - 5, widths[idx], rowHeight);
+        }
+      } else {
+        doc.rect(x, y - 5, widths[idx], rowHeight);
+      }
+      if (idx === 8) {
         const imageUrl = hasImage ? row.images[0] : '';
         if (imageUrl) {
           try {
@@ -990,7 +1019,12 @@ async function addObservationListPages(doc, options = {}) {
           doc.text('—', x + 1, y + 3);
         }
       } else {
+        if (isStatusColumn) {
+          const statusStyle = getStatusStyle(row.status);
+          if (statusStyle) doc.setTextColor(...statusStyle.text);
+        }
         doc.text(cellLines, x + 1, y);
+        if (isStatusColumn) doc.setTextColor(15, 23, 42);
       }
       x += widths[idx];
     }
