@@ -102,6 +102,10 @@ function daysSince(value) {
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
+function getObservationDateValue(row = {}) {
+  return row.observation_date || row.date_of_observation || row.timestamp || '';
+}
+
 function ensurePdfLib() {
   return window.jspdf?.jsPDF || null;
 }
@@ -146,8 +150,9 @@ function buildObservationReportPdf(row) {
   y = addPdfField(doc, 'Unit', row.unit, y);
   y = addPdfField(doc, 'Location', row.location, y);
   y = addPdfField(doc, 'Status', row.status, y);
-  y = addPdfField(doc, 'Observation Date', formatDateLabel(row.timestamp), y);
-  y = addPdfField(doc, 'Job Due Since (days)', daysSince(row.timestamp), y);
+  const observationDate = getObservationDateValue(row);
+  y = addPdfField(doc, 'Observation Date', formatDateLabel(observationDate), y);
+  y = addPdfField(doc, 'Job Due Since (days)', daysSince(observationDate), y);
   y = addPdfField(doc, 'Observation Details', row.observation, y);
   y = addPdfField(doc, 'Recommendation', row.recommendation, y);
 
@@ -942,6 +947,7 @@ function setupObservationPage() {
         document.getElementById('obsObservation').value = row.observation || '';
         document.getElementById('obsRecommendation').value = row.recommendation || '';
         document.getElementById('obsStatus').value = row.status || 'Action to be taken';
+        document.getElementById('obsDate').value = String(getObservationDateValue(row)).slice(0, 10);
         preview.innerHTML = editImagePaths.map((p) => {
           const imageUrl = getDisplayImageUrl(p);
           if (!imageUrl) return '';
@@ -981,7 +987,8 @@ function setupObservationPage() {
         if (!row) return;
         const reportFileName = buildObservationReportPdf(row);
         const imageLinks = (row.images || []).map((img, idx) => `${idx + 1}. ${img}`).join('\n');
-        const dueDays = daysSince(row.timestamp);
+        const observationDate = getObservationDateValue(row);
+        const dueDays = daysSince(observationDate);
         const subject = encodeURIComponent(`ATR Observation Report - ${row.tag_number || row.id}`);
         const body = encodeURIComponent(`Dear Team,
 
@@ -991,7 +998,7 @@ Tag Number: ${row.tag_number || '-'}
 Unit: ${row.unit || '-'}
 Location: ${row.location || '-'}
 Status: ${row.status || '-'}
-Observation Date: ${formatDateLabel(row.timestamp)}
+Observation Date: ${formatDateLabel(observationDate)}
 Job Due Since: ${dueDays} day(s)
 
 Observation Details:
@@ -1029,6 +1036,7 @@ ${getLoggedInUser()}`);
     panel.classList.remove('hidden');
     pageMain?.classList.add('split-view');
     openBtn.setAttribute('aria-expanded', 'true');
+    document.getElementById('obsDate').value = new Date().toISOString().slice(0, 10);
     document.getElementById('obsTag').focus();
   };
   document.getElementById('closeObservationFormBtn').onclick = () => {
@@ -1081,6 +1089,7 @@ ${getLoggedInUser()}`);
         observation: document.getElementById('obsObservation').value,
         recommendation: document.getElementById('obsRecommendation').value,
         status: document.getElementById('obsStatus').value,
+        observation_date: document.getElementById('obsDate').value,
         images: imagePaths
       }, 'OBS');
       form.reset();
