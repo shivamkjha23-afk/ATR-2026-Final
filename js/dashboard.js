@@ -897,8 +897,9 @@ async function addObservationListPages(doc, options = {}) {
     timeLabel,
     generatedAt
   } = options;
+  const getObservationDate = (row = {}) => row.observation_date || row.date_of_observation || row.timestamp || '';
   const toTimestamp = (row = {}) => {
-    const parsed = Date.parse(row.date_of_observation || row.observation_date || row.timestamp || '');
+    const parsed = Date.parse(getObservationDate(row));
     return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
   };
   const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(b) - toTimestamp(a));
@@ -946,7 +947,7 @@ async function addObservationListPages(doc, options = {}) {
     return null;
   };
   const formatObservationDate = (row = {}) => formatDateDdMmYy(
-    row.date_of_observation || row.observation_date || row.timestamp
+    getObservationDate(row)
   );
 
   const getRowLines = (row = {}, rowIndex = 0) => {
