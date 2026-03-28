@@ -937,17 +937,49 @@ async function addObservationListPages(doc, options = {}) {
 
   const normalizeValue = (value) => String(value || '-');
   const normalizePdfCellText = (value) => {
-    const base = normalizeValue(value).replace(/\r\n/g, '\n');
-    const cleanedLines = base.split('\n').map((line) => {
-      let cleaned = line.replace(/\s+/g, ' ').trim();
-      cleaned = cleaned.replace(/\s*([,/])\s*/g, '$1');
-      cleaned = cleaned.replace(/\s*([().])\s*/g, '$1');
-      cleaned = cleaned.replace(/- /g, '-');
-      cleaned = cleaned.replace(/\b(?:[A-Za-z]\s+){2,}[A-Za-z]\b/g, (match) => match.replace(/\s+/g, ''));
-      cleaned = cleaned.replace(/\b(?:\d\s+){2,}\d\b/g, (match) => match.replace(/\s+/g, ''));
-      return cleaned;
-    });
+    const base = normalizeValue(value)
+      .normalize('NFKC')
+      .replace(/\r\n/g, '\n')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+    const cleanedLines = base.split('\n').map((line) => line.replace(/[ \t]+/g, ' ').trim());
     return cleanedLines.join('\n');
+  };
+  const splitTextForPdfCell = (value, maxWidth) => {
+    const normalized = normalizePdfCellText(value);
+    const paragraphs = normalized.split('\n');
+    const wrapped = [];
+
+    const pushFittedLine = (lineText) => {
+      if (!lineText) {
+        wrapped.push('');
+        return;
+      }
+      if (doc.getTextWidth(lineText) <= maxWidth) {
+        wrapped.push(lineText);
+        return;
+      }
+      let current = '';
+      const graphemes = Array.from(lineText);
+      graphemes.forEach((char) => {
+        const candidate = `${current}${char}`;
+        if (current && doc.getTextWidth(candidate) > maxWidth) {
+          wrapped.push(current);
+          current = char;
+        } else {
+          current = candidate;
+        }
+      });
+      if (current) wrapped.push(current);
+    };
+
+    paragraphs.forEach((paragraph) => {
+      const splitLines = doc.splitTextToSize(paragraph || ' ', maxWidth);
+      splitLines.forEach(pushFittedLine);
+    });
+
+    return wrapped.length ? wrapped : ['-'];
   };
   const getStatusStyle = (status = '') => {
     const normalized = String(status || '').trim().toLowerCase();
@@ -981,12 +1013,12 @@ async function addObservationListPages(doc, options = {}) {
       row.status,
       ''
     ];
-    return values.map((value, idx) => doc.splitTextToSize(normalizePdfCellText(value), widths[idx] - 2));
+    return values.map((value, idx) => splitTextForPdfCell(value, widths[idx] - 2));
   };
 
   drawHeader();
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(12);
+  doc.setFontSize(10);
 
   if (!rows.length) {
     doc.text('No observations available.', 12, y + 2);
