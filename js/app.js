@@ -965,7 +965,14 @@ function setupObservationPage() {
     tbody.querySelectorAll('.obs-status').forEach((statusDropdown) => {
       statusDropdown.onchange = () => {
         const row = getCollection('observations').find((x) => x.id === statusDropdown.dataset.id);
-        if (row) upsertById('observations', { ...row, status: statusDropdown.value }, 'OBS');
+        if (row) {
+          upsertById(
+            'observations',
+            { ...row, status: statusDropdown.value },
+            'OBS',
+            { keepTimestampOnUpdate: true }
+          );
+        }
         render();
       };
     });

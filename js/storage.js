@@ -357,10 +357,14 @@ function saveDB(db) {
   if (!suppressSync) scheduleAutoSync();
 }
 
-function withAudit(record, isUpdate = false) {
+function withAudit(record, isUpdate = false, options = {}) {
   const user = getSessionUser() || 'system';
   const stamp = nowStamp();
-  const next = { ...record, timestamp: stamp };
+  const keepExistingTimestamp = options.keepTimestampOnUpdate === true
+    && isUpdate
+    && typeof record.timestamp === 'string'
+    && record.timestamp.trim() !== '';
+  const next = keepExistingTimestamp ? { ...record } : { ...record, timestamp: stamp };
   if (!isUpdate && !next.entered_by) next.entered_by = user;
   next.updated_by = user;
   return next;
@@ -376,13 +380,13 @@ function getCollection(name) {
   return readDB()[name] || [];
 }
 
-function upsertById(name, payload, prefix) {
+function upsertById(name, payload, prefix, options = {}) {
   const rows = getCollection(name);
   const idx = rows.findIndex((r) => r.id === payload.id && payload.id);
   if (idx >= 0) {
-    rows[idx] = withAudit({ ...rows[idx], ...payload, id: rows[idx].id }, true);
+    rows[idx] = withAudit({ ...rows[idx], ...payload, id: rows[idx].id }, true, options);
   } else {
-    rows.push(withAudit({ ...payload, id: payload.id || generateId(prefix) }));
+    rows.push(withAudit({ ...payload, id: payload.id || generateId(prefix) }, false, options));
   }
   saveCollection(name, rows);
 }
