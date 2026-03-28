@@ -898,11 +898,17 @@ async function addObservationListPages(doc, options = {}) {
     generatedAt
   } = options;
   const getObservationDate = (row = {}) => row.observation_date || row.date_of_observation || row.timestamp || '';
+  const normalizeObservationStatus = (status = '') => String(status || '').trim().toLowerCase();
   const toTimestamp = (row = {}) => {
     const parsed = Date.parse(getObservationDate(row));
     return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
   };
-  const rows = getCollection('observations').slice().sort((a, b) => toTimestamp(b) - toTimestamp(a));
+  const rows = getCollection('observations').slice().sort((a, b) => {
+    const aCompleted = normalizeObservationStatus(a.status) === 'completed';
+    const bCompleted = normalizeObservationStatus(b.status) === 'completed';
+    if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+    return toTimestamp(b) - toTimestamp(a);
+  });
   const headers = ['S.No', 'Date of Observation', 'Tag', 'Unit', 'Location', 'Observation', 'Recommendation', 'Status', 'Image'];
   const widths = [12, 24, 16, 16, 18, 56, 46, 24, 46];
   const startY = 34;
