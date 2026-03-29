@@ -648,9 +648,13 @@ function setupInspectionPage() {
 
   function filteredRows() {
     return getCollection('inspections').filter((r) => {
-      const okUnit = unitFilter.value === 'All' || (unitFilter.value === '' ? !r.unit_name : r.unit_name === unitFilter.value);
-      const okType = activeType === 'All' || r.equipment_type === activeType;
-      const okTag = (r.equipment_tag_number || '').toLowerCase().includes(tagSearch.value.trim().toLowerCase());
+      if (!r || typeof r !== 'object') return false;
+      const unitName = String(r.unit_name || '').trim();
+      const equipmentType = String(r.equipment_type || '').trim();
+      const equipmentTag = String(r.equipment_tag_number || '').toLowerCase();
+      const okUnit = unitFilter.value === 'All' || (unitFilter.value === '' ? !unitName : unitName === unitFilter.value);
+      const okType = activeType === 'All' || equipmentType === activeType;
+      const okTag = equipmentTag.includes(tagSearch.value.trim().toLowerCase());
       return okUnit && okType && okTag;
     });
   }
@@ -659,8 +663,9 @@ function setupInspectionPage() {
     const rows = filteredRows();
     const grouped = {};
     rows.forEach((r) => {
-      if (!grouped[r.unit_name]) grouped[r.unit_name] = [];
-      grouped[r.unit_name].push(r);
+      const unitName = String(r.unit_name || '').trim() || '(Blank Unit)';
+      if (!grouped[unitName]) grouped[unitName] = [];
+      grouped[unitName].push(r);
     });
 
     const units = Object.keys(grouped);
@@ -705,7 +710,7 @@ function setupInspectionPage() {
 
     unitLists.querySelectorAll('.edit-equipment').forEach((btn) => {
       btn.onclick = () => {
-        const row = getCollection('inspections').find((r) => r.id === btn.dataset.id || String(r.equipment_tag_number || "") === String(btn.dataset.tag || ""));
+        const row = getCollection('inspections').find((r) => r && (r.id === btn.dataset.id || String(r.equipment_tag_number || "") === String(btn.dataset.tag || "")));
         if (!row) return;
         editId = row.id;
         const normalized = normalizeInspectionPayload(row);
